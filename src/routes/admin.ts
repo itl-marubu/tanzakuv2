@@ -6,7 +6,7 @@ const admin = new Hono<{ Bindings: CloudflareBindings }>();
 
 admin.use("*", (c, next) => {
   const jwtMiddleware = jwt({
-    secret: c.env.JWT_SECRET,
+    secret: c.env.JWT_SECRET
   });
   return jwtMiddleware(c, next);
 });
