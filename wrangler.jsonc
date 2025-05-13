@@ -7,10 +7,6 @@
   "name": "tanzakuv2",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-13",
-  "assets": {
-    "binding": "ASSETS",
-    "directory": "./public"
-  },
   "observability": {
     "enabled": true
   },
