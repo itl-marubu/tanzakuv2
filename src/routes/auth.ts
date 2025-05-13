@@ -7,7 +7,7 @@ const auth = new Hono<{ Bindings: CloudflareBindings }>();
 auth.get(
   "/google",
   googleAuth({
-    scope: ["openid", "email", "profile"]
+    scope: ["openid", "email", "profile"],
   }),
   async (c) => {
     const user = c.get("user-google");
@@ -16,7 +16,7 @@ auth.get(
     try {
       const tokens = await authService.handleGoogleAuth(user, c.env.JWT_SECRET);
       return c.redirect(
-        `${c.env.FRONTEND_BASEURL}/auth?${new URLSearchParams(
+        `${c.env.FRONTEND_BASEURL}/auth/google?${new URLSearchParams(
           tokens
         ).toString()}`
       );
