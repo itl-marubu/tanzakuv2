@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import auth from "./routes/auth";
 import admin from "./routes/admin";
+import auth from "./routes/auth";
 import tanzaku from "./routes/tanzaku";
 
 const app = new Hono<{ Bindings: CloudflareBindings }>();
