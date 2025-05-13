@@ -1,0 +1,40 @@
+{
+  "name": "chuo-itl-tanzaku-v2",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "format:js": "biome format --write .",
+    "format:prisma": "prisma format",
+    "format": "run-p format:*",
+    "format:check": "biome format .",
+    "lint": "biome lint --write .",
+    "lint:check": "biome lint .",
+    "check": "biome check .",
+    "fix": "biome check --write .",
+    "gen": "run-p gen:*",
+    "gen:cf-types": "wrangler types --env-interface CloudflareBindings",
+    "gen:prisma-client": "prisma generate",
+    "migration:create": "wrangler d1 migrations create DB",
+    "migration:write-init": "prisma migrate diff --script --from-empty --to-schema-datamodel ./prisma/schema.prisma --output",
+    "migration:write": "prisma migrate diff --script --from-local-d1 --to-schema-datamodel ./prisma/schema.prisma --output",
+    "migrate:dev": "wrangler d1 migrations apply DB --local",
+    "migrate:remote": "wrangler d1 migrations apply DB --remote"
+  },
+  "dependencies": {
+    "@hono/oauth-providers": "^0.7.1",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@prisma/adapter-d1": "^6.7.0",
+    "@prisma/client": "^6.7.0",
+    "bcryptjs": "^3.0.2",
+    "hono": "^4.7.8",
+    "jose": "^6.0.11",
+    "prisma": "^6.7.0",
+    "prisma-markdown": "^2.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@cloudflare/workers-types": "^4.20250508.0",
+    "npm-run-all2": "^8.0.1",
+    "wrangler": "^4.14.4"
+  }
+}

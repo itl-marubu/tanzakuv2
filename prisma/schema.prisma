@@ -1,0 +1,65 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  output          = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "sqlite"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator markdown {
+  provider = "prisma-markdown"
+  output   = "../docs/ERD.md"
+  title    = "DB Schema"
+}
+
+model AdminUser {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  googleOauth   GoogleOauth?
+  githubOauth   GitHubOauth?
+  refreshTokens RefreshToken[]
+}
+
+model GoogleOauth {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  userId    String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      AdminUser @relation(fields: [userId], references: [id])
+}
+
+model GitHubOauth {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  userId    String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      AdminUser @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      AdminUser @relation(fields: [userId], references: [id])
+  userId    String
+}
+
+model Tanzaku {
+  id             String   @id @default(uuid())
+  title          String
+  content        String
+  userName       String
+  visiblePattern Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}

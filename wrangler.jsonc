@@ -1,0 +1,24 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanzakuv2",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-13",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "TANZAKU-V2",
+      "database_id": "2dfe24a8-c9df-4254-ab8c-8666638bb3e1"
+    }
+  ]
+}

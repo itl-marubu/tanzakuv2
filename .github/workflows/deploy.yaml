@@ -1,0 +1,105 @@
+name: Deploy & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      with_d1:
+        description: "Deploy D1"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          secrets: |
+            JWT_SECRET
+            SALT
+            GOOGLE_ID
+            GOOGLE_SECRET
+            GITHUB_ID
+            GITHUB_SECRET
+            FRONTEND_BASEURL
+        env:
+          JWT_SECRET: ${{ secrets.TOKEN_KEY }}
+          SALT: ${{ secrets.SALT }}
+          GOOGLE_ID: ${{ secrets.GOOGLE_ID }}
+          GOOGLE_SECRET: ${{ secrets.GOOGLE_SECRET }}
+          FRONTEND_BASEURL: ${{ secrets.FRONTEND_BASEURL }}
+  db-deploy:
+    runs-on: ubuntu-latest
+    name: D1 Deploy
+    if: ${{ github.event.inputs.with_d1 == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply --remote DB
+
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    outputs:
+      release_tag: ${{ steps.release_tag.outputs.VERSION }}
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate release tag
+        id: release_tag
+        run: |
+          VERSION=$(date +'%Y.%m.%d.%H%M')
+          echo "VERSION=v$VERSION" >> $GITHUB_OUTPUT
+        env:
+          TZ: "Asia/Tokyo"
+
+      - name: Release
+        run: |
+          gh release create ${{ steps.release_tag.outputs.VERSION }} \
+            --title "Release ${{ steps.release_tag.outputs.VERSION }}" \
+            --generate-notes \
+            --prerelease=false \
+            --target main \
+            --latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
