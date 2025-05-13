@@ -19,7 +19,7 @@ importers:
         version: 6.7.0
       '@prisma/client':
         specifier: ^6.7.0
-        version: 6.7.0(prisma@6.7.0)
+        version: 6.7.0(prisma@6.7.0(typescript@5.8.3))(typescript@5.8.3)
       bcryptjs:
         specifier: ^3.0.2
         version: 3.0.2
@@ -31,10 +31,10 @@ importers:
         version: 6.0.11
       prisma:
         specifier: ^6.7.0
-        version: 6.7.0
+        version: 6.7.0(typescript@5.8.3)
       prisma-markdown:
         specifier: ^2.0.0
-        version: 2.0.0(@prisma/client@6.7.0(prisma@6.7.0))(prisma@6.7.0)
+        version: 2.0.0(@prisma/client@6.7.0(prisma@6.7.0(typescript@5.8.3))(typescript@5.8.3))(prisma@6.7.0(typescript@5.8.3))
     devDependencies:
       '@biomejs/biome':
         specifier: ^1.9.4
@@ -45,6 +45,9 @@ importers:
       npm-run-all2:
         specifier: ^8.0.1
         version: 8.0.1
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
       wrangler:
         specifier: ^4.14.4
         version: 4.15.0(@cloudflare/workers-types@4.20250513.0)
@@ -724,6 +727,11 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  typescript@5.8.3:
+    resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
 
@@ -1029,9 +1037,10 @@ snapshots:
       '@prisma/driver-adapter-utils': 6.7.0
       ky: 1.7.5
 
-  '@prisma/client@6.7.0(prisma@6.7.0)':
+  '@prisma/client@6.7.0(prisma@6.7.0(typescript@5.8.3))(typescript@5.8.3)':
     optionalDependencies:
-      prisma: 6.7.0
+      prisma: 6.7.0(typescript@5.8.3)
+      typescript: 5.8.3
 
   '@prisma/config@6.7.0':
     dependencies:
@@ -1252,18 +1261,19 @@ snapshots:
 
   printable-characters@1.0.42: {}
 
-  prisma-markdown@2.0.0(@prisma/client@6.7.0(prisma@6.7.0))(prisma@6.7.0):
+  prisma-markdown@2.0.0(@prisma/client@6.7.0(prisma@6.7.0(typescript@5.8.3))(typescript@5.8.3))(prisma@6.7.0(typescript@5.8.3)):
     dependencies:
-      '@prisma/client': 6.7.0(prisma@6.7.0)
+      '@prisma/client': 6.7.0(prisma@6.7.0(typescript@5.8.3))(typescript@5.8.3)
       '@prisma/generator-helper': 6.7.0
-      prisma: 6.7.0
+      prisma: 6.7.0(typescript@5.8.3)
 
-  prisma@6.7.0:
+  prisma@6.7.0(typescript@5.8.3):
     dependencies:
       '@prisma/config': 6.7.0
       '@prisma/engines': 6.7.0
     optionalDependencies:
       fsevents: 2.3.3
+      typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
 
@@ -1326,6 +1336,8 @@ snapshots:
 
   tslib@2.8.1:
     optional: true
+
+  typescript@5.8.3: {}
 
   ufo@1.6.1: {}
 
