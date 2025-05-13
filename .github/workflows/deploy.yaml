@@ -42,8 +42,6 @@ jobs:
             SALT
             GOOGLE_ID
             GOOGLE_SECRET
-            GITHUB_ID
-            GITHUB_SECRET
             FRONTEND_BASEURL
         env:
           JWT_SECRET: ${{ secrets.TOKEN_KEY }}
