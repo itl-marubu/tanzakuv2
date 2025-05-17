@@ -38,6 +38,9 @@ components:
           type: string
         userName:
           type: string
+        validationResult:
+          type: number
+          enum: [0, 1]
 
     AuthTokens:
       type: object
