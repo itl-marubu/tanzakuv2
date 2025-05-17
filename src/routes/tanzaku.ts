@@ -23,7 +23,7 @@ tanzaku.post("/", async (c) => {
   return c.json(result);
 });
 
-tanzaku.get("/:id", async (c) => {
+tanzaku.get("/check/:id", async (c) => {
   const { id } = c.req.param();
   const service = new TanzakuService(c.env.DB);
   const result = await service.getTanzakuById(id);

@@ -22,14 +22,40 @@ export class TanzakuService {
   }
 
   async getTwentyTanzaku() {
+    const checkexistance = await this.prisma.tanzaku.findMany({
+      take: 1,
+      where: {
+        visiblePattern: true,
+      },
+    });
+    if (checkexistance.length === 0) {
+      await this.prisma.tanzaku.updateMany({
+        where: {
+          visiblePattern: false,
+        },
+        data: { visiblePattern: true },
+      });
+    }
+
     const result = await this.prisma.tanzaku.findMany({
-      take: 10,
+      take: 20,
       orderBy: {
         createdAt: "desc",
       },
       where: {
         visiblePattern: true,
       },
+    });
+
+    if (result.length === 0) {
+      throw new Error("Tanzaku not found");
+    }
+
+    await this.prisma.tanzaku.updateMany({
+      where: {
+        id: { in: result.map((r) => r.id) },
+      },
+      data: { visiblePattern: false },
     });
 
     return result;
