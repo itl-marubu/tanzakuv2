@@ -16,5 +16,8 @@
       "database_name": "TANZAKU-V2",
       "database_id": "2dfe24a8-c9df-4254-ab8c-8666638bb3e1"
     }
-  ]
+  ],
+  "ai": {
+    "binding": "AI"
+  }
 }

@@ -60,5 +60,7 @@ model Tanzaku {
   content        String
   userName       String
   visiblePattern Boolean  @default(true)
+  validationResult Int    @default(0)
+  logicalDelete  Boolean  @default(false)
   createdAt      DateTime @default(now())
 }

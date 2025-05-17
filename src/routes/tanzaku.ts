@@ -18,7 +18,11 @@ tanzaku.post("/", async (c) => {
   }>();
 
   const service = new TanzakuService(c.env.DB);
-  const result = await service.createTanzaku({ content, userName });
+  const result = await service.createTanzaku({
+    content,
+    userName,
+    ai: c.env.AI
+  });
 
   return c.json(result);
 });

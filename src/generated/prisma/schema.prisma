@@ -56,9 +56,11 @@ model RefreshToken {
 }
 
 model Tanzaku {
-  id             String   @id @default(uuid())
-  content        String
-  userName       String
-  visiblePattern Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id               String   @id @default(uuid())
+  content          String
+  userName         String
+  visiblePattern   Boolean  @default(true)
+  validationResult Int      @default(0)
+  logicalDelete    Boolean  @default(false)
+  createdAt        DateTime @default(now())
 }

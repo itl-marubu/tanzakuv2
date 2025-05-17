@@ -35,12 +35,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 6.7.0
- * Query Engine version: 3cff47a7f5d65c3ea74883f1d736e41d68ce91ed
+ * Prisma Client JS version: 6.8.2
+ * Query Engine version: 2060c79ba17c6bb9f5823312b6f6b7f4a845738e
  */
 Prisma.prismaVersion = {
-  client: "6.7.0",
-  engine: "3cff47a7f5d65c3ea74883f1d736e41d68ce91ed"
+  client: "6.8.2",
+  engine: "2060c79ba17c6bb9f5823312b6f6b7f4a845738e"
 }
 
 Prisma.PrismaClientKnownRequestError = PrismaClientKnownRequestError;
@@ -127,6 +127,8 @@ exports.Prisma.TanzakuScalarFieldEnum = {
   content: 'content',
   userName: 'userName',
   visiblePattern: 'visiblePattern',
+  validationResult: 'validationResult',
+  logicalDelete: 'logicalDelete',
   createdAt: 'createdAt'
 };
 
@@ -182,8 +184,8 @@ const config = {
     "rootEnvPath": null
   },
   "relativePath": "../../../prisma",
-  "clientVersion": "6.7.0",
-  "engineVersion": "3cff47a7f5d65c3ea74883f1d736e41d68ce91ed",
+  "clientVersion": "6.8.2",
+  "engineVersion": "2060c79ba17c6bb9f5823312b6f6b7f4a845738e",
   "datasourceNames": [
     "db"
   ],
@@ -197,13 +199,13 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider        = \"prisma-client-js\"\n  previewFeatures = [\"driverAdapters\"]\n  output          = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider  = \"sqlite\"\n  url       = env(\"DATABASE_URL\")\n  directUrl = env(\"DIRECT_URL\")\n}\n\ngenerator markdown {\n  provider = \"prisma-markdown\"\n  output   = \"../docs/ERD.md\"\n  title    = \"DB Schema\"\n}\n\nmodel AdminUser {\n  id            String         @id @default(uuid())\n  email         String         @unique\n  password      String?\n  createdAt     DateTime       @default(now())\n  updatedAt     DateTime       @updatedAt\n  googleOauth   GoogleOauth?\n  githubOauth   GitHubOauth?\n  refreshTokens RefreshToken[]\n}\n\nmodel GoogleOauth {\n  id        String    @id @default(cuid())\n  email     String    @unique\n  userId    String    @unique\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n}\n\nmodel GitHubOauth {\n  id        Int       @id @default(autoincrement())\n  email     String    @unique\n  userId    String    @unique\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n}\n\nmodel RefreshToken {\n  id        String    @id @default(cuid())\n  token     String    @unique\n  expiresAt DateTime\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n  userId    String\n}\n\nmodel Tanzaku {\n  id             String   @id @default(uuid())\n  content        String\n  userName       String\n  visiblePattern Boolean  @default(true)\n  createdAt      DateTime @default(now())\n}\n",
-  "inlineSchemaHash": "c5c2dc4b8d99918fbd3445d38778e5170b03d892281c61351f12cec9c3e0a26a",
+  "inlineSchema": "generator client {\n  provider        = \"prisma-client-js\"\n  previewFeatures = [\"driverAdapters\"]\n  output          = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider  = \"sqlite\"\n  url       = env(\"DATABASE_URL\")\n  directUrl = env(\"DIRECT_URL\")\n}\n\ngenerator markdown {\n  provider = \"prisma-markdown\"\n  output   = \"../docs/ERD.md\"\n  title    = \"DB Schema\"\n}\n\nmodel AdminUser {\n  id            String         @id @default(uuid())\n  email         String         @unique\n  password      String?\n  createdAt     DateTime       @default(now())\n  updatedAt     DateTime       @updatedAt\n  googleOauth   GoogleOauth?\n  githubOauth   GitHubOauth?\n  refreshTokens RefreshToken[]\n}\n\nmodel GoogleOauth {\n  id        String    @id @default(cuid())\n  email     String    @unique\n  userId    String    @unique\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n}\n\nmodel GitHubOauth {\n  id        Int       @id @default(autoincrement())\n  email     String    @unique\n  userId    String    @unique\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n}\n\nmodel RefreshToken {\n  id        String    @id @default(cuid())\n  token     String    @unique\n  expiresAt DateTime\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  user      AdminUser @relation(fields: [userId], references: [id])\n  userId    String\n}\n\nmodel Tanzaku {\n  id               String   @id @default(uuid())\n  content          String\n  userName         String\n  visiblePattern   Boolean  @default(true)\n  validationResult Int      @default(0)\n  logicalDelete    Boolean  @default(false)\n  createdAt        DateTime @default(now())\n}\n",
+  "inlineSchemaHash": "d8465a48a53cc413abba5b31278ce32a927112c87f5a120849a9233b39455f39",
   "copyEngine": true
 }
 config.dirname = '/'
 
-config.runtimeDataModel = JSON.parse("{\"models\":{\"AdminUser\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"googleOauth\",\"kind\":\"object\",\"type\":\"GoogleOauth\",\"relationName\":\"AdminUserToGoogleOauth\"},{\"name\":\"githubOauth\",\"kind\":\"object\",\"type\":\"GitHubOauth\",\"relationName\":\"AdminUserToGitHubOauth\"},{\"name\":\"refreshTokens\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"AdminUserToRefreshToken\"}],\"dbName\":null},\"GoogleOauth\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToGoogleOauth\"}],\"dbName\":null},\"GitHubOauth\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToGitHubOauth\"}],\"dbName\":null},\"RefreshToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"token\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToRefreshToken\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"}],\"dbName\":null},\"Tanzaku\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"content\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userName\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"visiblePattern\",\"kind\":\"scalar\",\"type\":\"Boolean\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
+config.runtimeDataModel = JSON.parse("{\"models\":{\"AdminUser\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"googleOauth\",\"kind\":\"object\",\"type\":\"GoogleOauth\",\"relationName\":\"AdminUserToGoogleOauth\"},{\"name\":\"githubOauth\",\"kind\":\"object\",\"type\":\"GitHubOauth\",\"relationName\":\"AdminUserToGitHubOauth\"},{\"name\":\"refreshTokens\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"AdminUserToRefreshToken\"}],\"dbName\":null},\"GoogleOauth\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToGoogleOauth\"}],\"dbName\":null},\"GitHubOauth\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToGitHubOauth\"}],\"dbName\":null},\"RefreshToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"token\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"AdminUser\",\"relationName\":\"AdminUserToRefreshToken\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\"}],\"dbName\":null},\"Tanzaku\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"content\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userName\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"visiblePattern\",\"kind\":\"scalar\",\"type\":\"Boolean\"},{\"name\":\"validationResult\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"logicalDelete\",\"kind\":\"scalar\",\"type\":\"Boolean\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
 defineDmmfProperty(exports.Prisma, config.runtimeDataModel)
 config.engineWasm = {
   getRuntime: async () => require('./query_engine_bg.js'),

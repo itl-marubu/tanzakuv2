@@ -271,8 +271,8 @@ export namespace Prisma {
   export import Exact = $Public.Exact
 
   /**
-   * Prisma Client JS version: 6.7.0
-   * Query Engine version: 3cff47a7f5d65c3ea74883f1d736e41d68ce91ed
+   * Prisma Client JS version: 6.8.2
+   * Query Engine version: 2060c79ba17c6bb9f5823312b6f6b7f4a845738e
    */
   export type PrismaVersion = {
     client: string
@@ -5602,8 +5602,18 @@ export namespace Prisma {
 
   export type AggregateTanzaku = {
     _count: TanzakuCountAggregateOutputType | null
+    _avg: TanzakuAvgAggregateOutputType | null
+    _sum: TanzakuSumAggregateOutputType | null
     _min: TanzakuMinAggregateOutputType | null
     _max: TanzakuMaxAggregateOutputType | null
+  }
+
+  export type TanzakuAvgAggregateOutputType = {
+    validationResult: number | null
+  }
+
+  export type TanzakuSumAggregateOutputType = {
+    validationResult: number | null
   }
 
   export type TanzakuMinAggregateOutputType = {
@@ -5611,6 +5621,8 @@ export namespace Prisma {
     content: string | null
     userName: string | null
     visiblePattern: boolean | null
+    validationResult: number | null
+    logicalDelete: boolean | null
     createdAt: Date | null
   }
 
@@ -5619,6 +5631,8 @@ export namespace Prisma {
     content: string | null
     userName: string | null
     visiblePattern: boolean | null
+    validationResult: number | null
+    logicalDelete: boolean | null
     createdAt: Date | null
   }
 
@@ -5627,16 +5641,28 @@ export namespace Prisma {
     content: number
     userName: number
     visiblePattern: number
+    validationResult: number
+    logicalDelete: number
     createdAt: number
     _all: number
   }
 
+
+  export type TanzakuAvgAggregateInputType = {
+    validationResult?: true
+  }
+
+  export type TanzakuSumAggregateInputType = {
+    validationResult?: true
+  }
 
   export type TanzakuMinAggregateInputType = {
     id?: true
     content?: true
     userName?: true
     visiblePattern?: true
+    validationResult?: true
+    logicalDelete?: true
     createdAt?: true
   }
 
@@ -5645,6 +5671,8 @@ export namespace Prisma {
     content?: true
     userName?: true
     visiblePattern?: true
+    validationResult?: true
+    logicalDelete?: true
     createdAt?: true
   }
 
@@ -5653,6 +5681,8 @@ export namespace Prisma {
     content?: true
     userName?: true
     visiblePattern?: true
+    validationResult?: true
+    logicalDelete?: true
     createdAt?: true
     _all?: true
   }
@@ -5695,6 +5725,18 @@ export namespace Prisma {
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
+     * Select which fields to average
+    **/
+    _avg?: TanzakuAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: TanzakuSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
      * Select which fields to find the minimum value
     **/
     _min?: TanzakuMinAggregateInputType
@@ -5725,6 +5767,8 @@ export namespace Prisma {
     take?: number
     skip?: number
     _count?: TanzakuCountAggregateInputType | true
+    _avg?: TanzakuAvgAggregateInputType
+    _sum?: TanzakuSumAggregateInputType
     _min?: TanzakuMinAggregateInputType
     _max?: TanzakuMaxAggregateInputType
   }
@@ -5734,8 +5778,12 @@ export namespace Prisma {
     content: string
     userName: string
     visiblePattern: boolean
+    validationResult: number
+    logicalDelete: boolean
     createdAt: Date
     _count: TanzakuCountAggregateOutputType | null
+    _avg: TanzakuAvgAggregateOutputType | null
+    _sum: TanzakuSumAggregateOutputType | null
     _min: TanzakuMinAggregateOutputType | null
     _max: TanzakuMaxAggregateOutputType | null
   }
@@ -5759,6 +5807,8 @@ export namespace Prisma {
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
+    validationResult?: boolean
+    logicalDelete?: boolean
     createdAt?: boolean
   }, ExtArgs["result"]["tanzaku"]>
 
@@ -5767,6 +5817,8 @@ export namespace Prisma {
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
+    validationResult?: boolean
+    logicalDelete?: boolean
     createdAt?: boolean
   }, ExtArgs["result"]["tanzaku"]>
 
@@ -5775,6 +5827,8 @@ export namespace Prisma {
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
+    validationResult?: boolean
+    logicalDelete?: boolean
     createdAt?: boolean
   }, ExtArgs["result"]["tanzaku"]>
 
@@ -5783,10 +5837,12 @@ export namespace Prisma {
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
+    validationResult?: boolean
+    logicalDelete?: boolean
     createdAt?: boolean
   }
 
-  export type TanzakuOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "content" | "userName" | "visiblePattern" | "createdAt", ExtArgs["result"]["tanzaku"]>
+  export type TanzakuOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "content" | "userName" | "visiblePattern" | "validationResult" | "logicalDelete" | "createdAt", ExtArgs["result"]["tanzaku"]>
 
   export type $TanzakuPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "Tanzaku"
@@ -5796,6 +5852,8 @@ export namespace Prisma {
       content: string
       userName: string
       visiblePattern: boolean
+      validationResult: number
+      logicalDelete: boolean
       createdAt: Date
     }, ExtArgs["result"]["tanzaku"]>
     composites: {}
@@ -6224,6 +6282,8 @@ export namespace Prisma {
     readonly content: FieldRef<"Tanzaku", 'String'>
     readonly userName: FieldRef<"Tanzaku", 'String'>
     readonly visiblePattern: FieldRef<"Tanzaku", 'Boolean'>
+    readonly validationResult: FieldRef<"Tanzaku", 'Int'>
+    readonly logicalDelete: FieldRef<"Tanzaku", 'Boolean'>
     readonly createdAt: FieldRef<"Tanzaku", 'DateTime'>
   }
     
@@ -6650,6 +6710,8 @@ export namespace Prisma {
     content: 'content',
     userName: 'userName',
     visiblePattern: 'visiblePattern',
+    validationResult: 'validationResult',
+    logicalDelete: 'logicalDelete',
     createdAt: 'createdAt'
   };
 
@@ -6956,6 +7018,8 @@ export namespace Prisma {
     content?: StringFilter<"Tanzaku"> | string
     userName?: StringFilter<"Tanzaku"> | string
     visiblePattern?: BoolFilter<"Tanzaku"> | boolean
+    validationResult?: IntFilter<"Tanzaku"> | number
+    logicalDelete?: BoolFilter<"Tanzaku"> | boolean
     createdAt?: DateTimeFilter<"Tanzaku"> | Date | string
   }
 
@@ -6964,6 +7028,8 @@ export namespace Prisma {
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
+    validationResult?: SortOrder
+    logicalDelete?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -6975,6 +7041,8 @@ export namespace Prisma {
     content?: StringFilter<"Tanzaku"> | string
     userName?: StringFilter<"Tanzaku"> | string
     visiblePattern?: BoolFilter<"Tanzaku"> | boolean
+    validationResult?: IntFilter<"Tanzaku"> | number
+    logicalDelete?: BoolFilter<"Tanzaku"> | boolean
     createdAt?: DateTimeFilter<"Tanzaku"> | Date | string
   }, "id">
 
@@ -6983,10 +7051,14 @@ export namespace Prisma {
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
+    validationResult?: SortOrder
+    logicalDelete?: SortOrder
     createdAt?: SortOrder
     _count?: TanzakuCountOrderByAggregateInput
+    _avg?: TanzakuAvgOrderByAggregateInput
     _max?: TanzakuMaxOrderByAggregateInput
     _min?: TanzakuMinOrderByAggregateInput
+    _sum?: TanzakuSumOrderByAggregateInput
   }
 
   export type TanzakuScalarWhereWithAggregatesInput = {
@@ -6997,6 +7069,8 @@ export namespace Prisma {
     content?: StringWithAggregatesFilter<"Tanzaku"> | string
     userName?: StringWithAggregatesFilter<"Tanzaku"> | string
     visiblePattern?: BoolWithAggregatesFilter<"Tanzaku"> | boolean
+    validationResult?: IntWithAggregatesFilter<"Tanzaku"> | number
+    logicalDelete?: BoolWithAggregatesFilter<"Tanzaku"> | boolean
     createdAt?: DateTimeWithAggregatesFilter<"Tanzaku"> | Date | string
   }
 
@@ -7242,6 +7316,8 @@ export namespace Prisma {
     content: string
     userName: string
     visiblePattern?: boolean
+    validationResult?: number
+    logicalDelete?: boolean
     createdAt?: Date | string
   }
 
@@ -7250,6 +7326,8 @@ export namespace Prisma {
     content: string
     userName: string
     visiblePattern?: boolean
+    validationResult?: number
+    logicalDelete?: boolean
     createdAt?: Date | string
   }
 
@@ -7258,6 +7336,8 @@ export namespace Prisma {
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
+    validationResult?: IntFieldUpdateOperationsInput | number
+    logicalDelete?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -7266,6 +7346,8 @@ export namespace Prisma {
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
+    validationResult?: IntFieldUpdateOperationsInput | number
+    logicalDelete?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -7274,6 +7356,8 @@ export namespace Prisma {
     content: string
     userName: string
     visiblePattern?: boolean
+    validationResult?: number
+    logicalDelete?: boolean
     createdAt?: Date | string
   }
 
@@ -7282,6 +7366,8 @@ export namespace Prisma {
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
+    validationResult?: IntFieldUpdateOperationsInput | number
+    logicalDelete?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -7290,6 +7376,8 @@ export namespace Prisma {
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
+    validationResult?: IntFieldUpdateOperationsInput | number
+    logicalDelete?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -7554,7 +7642,13 @@ export namespace Prisma {
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
+    validationResult?: SortOrder
+    logicalDelete?: SortOrder
     createdAt?: SortOrder
+  }
+
+  export type TanzakuAvgOrderByAggregateInput = {
+    validationResult?: SortOrder
   }
 
   export type TanzakuMaxOrderByAggregateInput = {
@@ -7562,6 +7656,8 @@ export namespace Prisma {
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
+    validationResult?: SortOrder
+    logicalDelete?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -7570,7 +7666,13 @@ export namespace Prisma {
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
+    validationResult?: SortOrder
+    logicalDelete?: SortOrder
     createdAt?: SortOrder
+  }
+
+  export type TanzakuSumOrderByAggregateInput = {
+    validationResult?: SortOrder
   }
 
   export type BoolWithAggregatesFilter<$PrismaModel = never> = {

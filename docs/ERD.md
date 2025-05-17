@@ -40,6 +40,8 @@ erDiagram
   String content
   String userName
   Boolean visiblePattern
+  Int validationResult
+  Boolean logicalDelete
   DateTime createdAt
 }
 "GoogleOauth" |o--|| "AdminUser" : user
@@ -91,4 +93,6 @@ erDiagram
   - `content`: 
   - `userName`: 
   - `visiblePattern`: 
+  - `validationResult`: 
+  - `logicalDelete`: 
   - `createdAt`: 
