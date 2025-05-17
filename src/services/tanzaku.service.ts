@@ -11,13 +11,13 @@ export class TanzakuService {
 
   async createTanzaku(data: { content: string; userName: string }) {
     return await this.prisma.tanzaku.create({
-      data,
+      data
     });
   }
 
   async getTanzakuById(id: string) {
     return await this.prisma.tanzaku.findUnique({
-      where: { id },
+      where: { id }
     });
   }
 
@@ -25,33 +25,33 @@ export class TanzakuService {
     const checkexistance = await this.prisma.tanzaku.findMany({
       take: 1,
       where: {
-        visiblePattern: true,
-      },
+        visiblePattern: true
+      }
     });
     if (checkexistance.length === 0) {
       await this.prisma.tanzaku.updateMany({
         where: {
-          visiblePattern: false,
+          visiblePattern: false
         },
-        data: { visiblePattern: true },
+        data: { visiblePattern: true }
       });
     }
 
     const result = await this.prisma.tanzaku.findMany({
       take: 20,
       orderBy: {
-        createdAt: "desc",
+        createdAt: "desc"
       },
       where: {
-        visiblePattern: true,
-      },
+        visiblePattern: true
+      }
     });
 
     await this.prisma.tanzaku.updateMany({
       where: {
-        id: { in: result.map((r) => r.id) },
+        id: { in: result.map((r) => r.id) }
       },
-      data: { visiblePattern: false },
+      data: { visiblePattern: false }
     });
 
     return result;
@@ -60,8 +60,8 @@ export class TanzakuService {
   async getAllTanzaku() {
     return await this.prisma.tanzaku.findMany({
       orderBy: {
-        createdAt: "desc",
-      },
+        createdAt: "desc"
+      }
     });
   }
 
@@ -76,8 +76,8 @@ export class TanzakuService {
     if (data.some((d) => d.operation === "delete")) {
       await this.prisma.tanzaku.deleteMany({
         where: {
-          id: { in: data.map((d) => d.id) },
-        },
+          id: { in: data.map((d) => d.id) }
+        }
       });
     } else {
       await Promise.all(
@@ -86,8 +86,8 @@ export class TanzakuService {
             where: { id: d.id },
             data: {
               content: d.content ?? undefined,
-              userName: d.userName ?? undefined,
-            },
+              userName: d.userName ?? undefined
+            }
           })
         )
       );
