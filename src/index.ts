@@ -12,11 +12,11 @@ app.use(
   "*",
   cors({
     origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["Content-Length", "X-Kuma-Revision"],
     maxAge: 600,
-    credentials: true
+    credentials: true,
   })
 );
 
