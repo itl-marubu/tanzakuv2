@@ -10,6 +10,9 @@ export class TanzakuService {
   }
 
   async createTanzaku(data: { content: string; userName: string }) {
+    if (data.content.length > 14) {
+      throw new Error("メッセージは14文字以内で入力してください");
+    }
     return await this.prisma.tanzaku.create({
       data,
     });
