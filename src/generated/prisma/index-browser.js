@@ -152,7 +152,6 @@ exports.Prisma.RefreshTokenScalarFieldEnum = {
 
 exports.Prisma.TanzakuScalarFieldEnum = {
   id: 'id',
-  title: 'title',
   content: 'content',
   userName: 'userName',
   visiblePattern: 'visiblePattern',

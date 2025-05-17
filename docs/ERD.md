@@ -37,7 +37,6 @@ erDiagram
 }
 "Tanzaku" {
   String id PK
-  String title
   String content
   String userName
   Boolean visiblePattern
@@ -89,7 +88,6 @@ erDiagram
 
 **Properties**
   - `id`: 
-  - `title`: 
   - `content`: 
   - `userName`: 
   - `visiblePattern`: 

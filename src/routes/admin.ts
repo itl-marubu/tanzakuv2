@@ -6,7 +6,7 @@ const admin = new Hono<{ Bindings: CloudflareBindings }>();
 
 admin.use("*", (c, next) => {
   const jwtMiddleware = jwt({
-    secret: c.env.JWT_SECRET
+    secret: c.env.JWT_SECRET,
   });
   return jwtMiddleware(c, next);
 });
@@ -31,7 +31,6 @@ admin.post("/tanzakus", async (c) => {
           | {
               id: string;
               operation: "update";
-              title: string;
               content: string;
               userName: string;
             }

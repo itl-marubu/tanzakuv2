@@ -8,13 +8,13 @@ tanzaku.get("/", (c) => {
 });
 
 tanzaku.post("/", async (c) => {
-  const { title, content, userName } = await c.req.json<{
+  const { content, userName } = await c.req.json<{
     content: string;
     userName: string;
   }>();
 
   const service = new TanzakuService(c.env.DB);
-  const result = await service.createTanzaku({ title, content, userName });
+  const result = await service.createTanzaku({ content, userName });
 
   return c.json(result);
 });

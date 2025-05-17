@@ -51,7 +51,6 @@ export class TanzakuService {
     data: {
       id: string;
       operation: "delete" | "update";
-      title?: string;
       content?: string;
       userName?: string;
     }[]
@@ -68,7 +67,6 @@ export class TanzakuService {
           this.prisma.tanzaku.update({
             where: { id: d.id },
             data: {
-              title: d.title ?? undefined,
               content: d.content ?? undefined,
               userName: d.userName ?? undefined,
             },

@@ -5608,7 +5608,6 @@ export namespace Prisma {
 
   export type TanzakuMinAggregateOutputType = {
     id: string | null
-    title: string | null
     content: string | null
     userName: string | null
     visiblePattern: boolean | null
@@ -5617,7 +5616,6 @@ export namespace Prisma {
 
   export type TanzakuMaxAggregateOutputType = {
     id: string | null
-    title: string | null
     content: string | null
     userName: string | null
     visiblePattern: boolean | null
@@ -5626,7 +5624,6 @@ export namespace Prisma {
 
   export type TanzakuCountAggregateOutputType = {
     id: number
-    title: number
     content: number
     userName: number
     visiblePattern: number
@@ -5637,7 +5634,6 @@ export namespace Prisma {
 
   export type TanzakuMinAggregateInputType = {
     id?: true
-    title?: true
     content?: true
     userName?: true
     visiblePattern?: true
@@ -5646,7 +5642,6 @@ export namespace Prisma {
 
   export type TanzakuMaxAggregateInputType = {
     id?: true
-    title?: true
     content?: true
     userName?: true
     visiblePattern?: true
@@ -5655,7 +5650,6 @@ export namespace Prisma {
 
   export type TanzakuCountAggregateInputType = {
     id?: true
-    title?: true
     content?: true
     userName?: true
     visiblePattern?: true
@@ -5737,7 +5731,6 @@ export namespace Prisma {
 
   export type TanzakuGroupByOutputType = {
     id: string
-    title: string
     content: string
     userName: string
     visiblePattern: boolean
@@ -5763,7 +5756,6 @@ export namespace Prisma {
 
   export type TanzakuSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    title?: boolean
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
@@ -5772,7 +5764,6 @@ export namespace Prisma {
 
   export type TanzakuSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    title?: boolean
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
@@ -5781,7 +5772,6 @@ export namespace Prisma {
 
   export type TanzakuSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    title?: boolean
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
@@ -5790,21 +5780,19 @@ export namespace Prisma {
 
   export type TanzakuSelectScalar = {
     id?: boolean
-    title?: boolean
     content?: boolean
     userName?: boolean
     visiblePattern?: boolean
     createdAt?: boolean
   }
 
-  export type TanzakuOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "title" | "content" | "userName" | "visiblePattern" | "createdAt", ExtArgs["result"]["tanzaku"]>
+  export type TanzakuOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "content" | "userName" | "visiblePattern" | "createdAt", ExtArgs["result"]["tanzaku"]>
 
   export type $TanzakuPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "Tanzaku"
     objects: {}
     scalars: $Extensions.GetPayloadResult<{
       id: string
-      title: string
       content: string
       userName: string
       visiblePattern: boolean
@@ -6233,7 +6221,6 @@ export namespace Prisma {
    */
   interface TanzakuFieldRefs {
     readonly id: FieldRef<"Tanzaku", 'String'>
-    readonly title: FieldRef<"Tanzaku", 'String'>
     readonly content: FieldRef<"Tanzaku", 'String'>
     readonly userName: FieldRef<"Tanzaku", 'String'>
     readonly visiblePattern: FieldRef<"Tanzaku", 'Boolean'>
@@ -6660,7 +6647,6 @@ export namespace Prisma {
 
   export const TanzakuScalarFieldEnum: {
     id: 'id',
-    title: 'title',
     content: 'content',
     userName: 'userName',
     visiblePattern: 'visiblePattern',
@@ -6967,7 +6953,6 @@ export namespace Prisma {
     OR?: TanzakuWhereInput[]
     NOT?: TanzakuWhereInput | TanzakuWhereInput[]
     id?: StringFilter<"Tanzaku"> | string
-    title?: StringFilter<"Tanzaku"> | string
     content?: StringFilter<"Tanzaku"> | string
     userName?: StringFilter<"Tanzaku"> | string
     visiblePattern?: BoolFilter<"Tanzaku"> | boolean
@@ -6976,7 +6961,6 @@ export namespace Prisma {
 
   export type TanzakuOrderByWithRelationInput = {
     id?: SortOrder
-    title?: SortOrder
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
@@ -6988,7 +6972,6 @@ export namespace Prisma {
     AND?: TanzakuWhereInput | TanzakuWhereInput[]
     OR?: TanzakuWhereInput[]
     NOT?: TanzakuWhereInput | TanzakuWhereInput[]
-    title?: StringFilter<"Tanzaku"> | string
     content?: StringFilter<"Tanzaku"> | string
     userName?: StringFilter<"Tanzaku"> | string
     visiblePattern?: BoolFilter<"Tanzaku"> | boolean
@@ -6997,7 +6980,6 @@ export namespace Prisma {
 
   export type TanzakuOrderByWithAggregationInput = {
     id?: SortOrder
-    title?: SortOrder
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
@@ -7012,7 +6994,6 @@ export namespace Prisma {
     OR?: TanzakuScalarWhereWithAggregatesInput[]
     NOT?: TanzakuScalarWhereWithAggregatesInput | TanzakuScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"Tanzaku"> | string
-    title?: StringWithAggregatesFilter<"Tanzaku"> | string
     content?: StringWithAggregatesFilter<"Tanzaku"> | string
     userName?: StringWithAggregatesFilter<"Tanzaku"> | string
     visiblePattern?: BoolWithAggregatesFilter<"Tanzaku"> | boolean
@@ -7258,7 +7239,6 @@ export namespace Prisma {
 
   export type TanzakuCreateInput = {
     id?: string
-    title: string
     content: string
     userName: string
     visiblePattern?: boolean
@@ -7267,7 +7247,6 @@ export namespace Prisma {
 
   export type TanzakuUncheckedCreateInput = {
     id?: string
-    title: string
     content: string
     userName: string
     visiblePattern?: boolean
@@ -7276,7 +7255,6 @@ export namespace Prisma {
 
   export type TanzakuUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: StringFieldUpdateOperationsInput | string
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
@@ -7285,7 +7263,6 @@ export namespace Prisma {
 
   export type TanzakuUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: StringFieldUpdateOperationsInput | string
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
@@ -7294,7 +7271,6 @@ export namespace Prisma {
 
   export type TanzakuCreateManyInput = {
     id?: string
-    title: string
     content: string
     userName: string
     visiblePattern?: boolean
@@ -7303,7 +7279,6 @@ export namespace Prisma {
 
   export type TanzakuUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: StringFieldUpdateOperationsInput | string
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
@@ -7312,7 +7287,6 @@ export namespace Prisma {
 
   export type TanzakuUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: StringFieldUpdateOperationsInput | string
     content?: StringFieldUpdateOperationsInput | string
     userName?: StringFieldUpdateOperationsInput | string
     visiblePattern?: BoolFieldUpdateOperationsInput | boolean
@@ -7577,7 +7551,6 @@ export namespace Prisma {
 
   export type TanzakuCountOrderByAggregateInput = {
     id?: SortOrder
-    title?: SortOrder
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
@@ -7586,7 +7559,6 @@ export namespace Prisma {
 
   export type TanzakuMaxOrderByAggregateInput = {
     id?: SortOrder
-    title?: SortOrder
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
@@ -7595,7 +7567,6 @@ export namespace Prisma {
 
   export type TanzakuMinOrderByAggregateInput = {
     id?: SortOrder
-    title?: SortOrder
     content?: SortOrder
     userName?: SortOrder
     visiblePattern?: SortOrder
