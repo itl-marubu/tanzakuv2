@@ -5,8 +5,11 @@ import { cors } from "hono/cors";
 const tanzaku = new Hono<{ Bindings: CloudflareBindings }>();
 tanzaku.use("*", cors());
 
-tanzaku.get("/", (c) => {
-  return c.text("Hello World");
+tanzaku.get("/", async (c) => {
+  const service = new TanzakuService(c.env.DB);
+  const result = await service.getAllTanzaku();
+
+  return c.json(result);
 });
 
 tanzaku.post("/", async (c) => {
