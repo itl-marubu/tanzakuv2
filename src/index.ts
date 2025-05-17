@@ -1,8 +1,8 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import admin from "./routes/admin";
 import auth from "./routes/auth";
 import tanzaku from "./routes/tanzaku";
-import { cors } from "hono/cors";
 
 const app = new Hono<{ Bindings: CloudflareBindings }>();
 app.get("/", (c) => {
@@ -16,7 +16,7 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["Content-Length", "X-Kuma-Revision"],
     maxAge: 600,
-    credentials: true,
+    credentials: true
   })
 );
 
