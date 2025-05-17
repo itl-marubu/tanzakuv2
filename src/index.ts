@@ -8,7 +8,17 @@ const app = new Hono<{ Bindings: CloudflareBindings }>();
 app.get("/", (c) => {
   return c.text("Hello Hono!");
 });
-app.use("*", cors());
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["Content-Length", "X-Kuma-Revision"],
+    maxAge: 600,
+    credentials: true,
+  })
+);
 
 app.route("/auth", auth);
 app.route("/admin", admin);
