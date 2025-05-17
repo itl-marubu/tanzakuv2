@@ -24,19 +24,19 @@
   "dependencies": {
     "@hono/oauth-providers": "^0.7.1",
     "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/adapter-d1": "^6.7.0",
-    "@prisma/client": "^6.7.0",
+    "@prisma/adapter-d1": "^6.8.2",
+    "@prisma/client": "^6.8.2",
     "bcryptjs": "^3.0.2",
-    "hono": "^4.7.8",
+    "hono": "^4.7.9",
     "jose": "^6.0.11",
-    "prisma": "^6.7.0",
+    "prisma": "^6.8.2",
     "prisma-markdown": "^2.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@cloudflare/workers-types": "^4.20250508.0",
-    "npm-run-all2": "^8.0.1",
+    "@cloudflare/workers-types": "^4.20250517.0",
+    "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
-    "wrangler": "^4.14.4"
+    "wrangler": "^4.15.2"
   }
 }

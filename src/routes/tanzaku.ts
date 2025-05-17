@@ -3,17 +3,6 @@ import { TanzakuService } from "../services/tanzaku.service";
 import { cors } from "hono/cors";
 
 const tanzaku = new Hono<{ Bindings: CloudflareBindings }>();
-tanzaku.use(
-  "*",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
-    exposeHeaders: ["Content-Length", "X-Kuma-Revision"],
-    maxAge: 600,
-    credentials: true,
-  })
-);
 
 tanzaku.get("/", async (c) => {
   const service = new TanzakuService(c.env.DB);
