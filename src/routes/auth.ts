@@ -7,7 +7,7 @@ const auth = new Hono<{ Bindings: CloudflareBindings }>();
 auth.get(
   "/google",
   googleAuth({
-    scope: ["openid", "email", "profile"]
+    scope: ["openid", "email", "profile"],
   }),
   async (c) => {
     const user = c.get("user-google");
