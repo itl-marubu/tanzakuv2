@@ -21,7 +21,7 @@ tanzaku.post("/", async (c) => {
   const result = await service.createTanzaku(
     {
       content,
-      userName,
+      userName
     },
     c.env.AI
   );
