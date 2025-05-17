@@ -9,7 +9,6 @@ tanzaku.get("/", (c) => {
 
 tanzaku.post("/", async (c) => {
   const { title, content, userName } = await c.req.json<{
-    title: string;
     content: string;
     userName: string;
   }>();

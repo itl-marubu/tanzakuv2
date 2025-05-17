@@ -57,7 +57,6 @@ model RefreshToken {
 
 model Tanzaku {
   id             String   @id @default(uuid())
-  title          String
   content        String
   userName       String
   visiblePattern Boolean  @default(true)
