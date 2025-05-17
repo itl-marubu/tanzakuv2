@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { TanzakuService } from "../services/tanzaku.service";
+import { cors } from "hono/cors";
 
 const tanzaku = new Hono<{ Bindings: CloudflareBindings }>();
+tanzaku.use("*", cors());
 
 tanzaku.get("/", (c) => {
   return c.text("Hello World");
