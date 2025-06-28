@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import admin from "./routes/admin";
+// import admin from "./routes/admin";
 import auth from "./routes/auth";
 import tanzaku from "./routes/tanzaku";
+import manage from "./routes/manage";
 
 const app = new Hono<{ Bindings: CloudflareBindings }>();
 app.get("/", (c) => {
@@ -21,6 +22,7 @@ app.use(
 );
 
 app.route("/auth", auth);
-app.route("/admin", admin);
+// app.route("/admin", admin);
 app.route("/tanzaku", tanzaku);
+app.route("/manage", manage);
 export default app;
