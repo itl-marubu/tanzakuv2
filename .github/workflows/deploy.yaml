@@ -43,12 +43,16 @@ jobs:
             GOOGLE_ID
             GOOGLE_SECRET
             FRONTEND_BASEURL
+            ADMIN_ID
+            ADMIN_PWD
         env:
           JWT_SECRET: ${{ secrets.TOKEN_KEY }}
           SALT: ${{ secrets.SALT }}
           GOOGLE_ID: ${{ secrets.GOOGLE_ID }}
           GOOGLE_SECRET: ${{ secrets.GOOGLE_SECRET }}
           FRONTEND_BASEURL: ${{ secrets.FRONTEND_BASEURL }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          ADMIN_PWD: ${{ secrets.ADMIN_PWD }}
   db-deploy:
     runs-on: ubuntu-latest
     name: D1 Deploy

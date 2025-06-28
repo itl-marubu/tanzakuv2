@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { TanzakuService } from "../services/tanzaku.service";
 import { basicAuth } from "hono/basic-auth";
+import { TanzakuService } from "../services/tanzaku.service";
 
 const manage = new Hono<{ Bindings: CloudflareBindings }>();
 
@@ -8,7 +8,7 @@ const manage = new Hono<{ Bindings: CloudflareBindings }>();
 manage.use("*", (c, next) => {
   const auth = basicAuth({
     username: c.env.ADMIN_ID || "admin",
-    password: c.env.ADMIN_PWD || "password",
+    password: c.env.ADMIN_PWD || "password"
   });
   return auth(c, next);
 });
@@ -900,24 +900,26 @@ manage.post("/tanzakus/create", async (c) => {
       userName: string;
       validationResult?: number;
     };
-    
+
     // バリデーション結果が指定されていない場合は0（適切）にする
     const validationResult = data.validationResult ?? 0;
-    
+
     const result = await service.createTanzaku(
       { content: data.content, userName: data.userName },
       null // AI validation is skipped in manage mode
     );
-    
+
     // 管理画面で作成する場合は指定されたバリデーション結果を使用
     if (data.validationResult !== undefined) {
-      await service.editTanzaku([{
-        id: result.id,
-        operation: "update",
-        validationResult: validationResult
-      }]);
+      await service.editTanzaku([
+        {
+          id: result.id,
+          operation: "update",
+          validationResult: validationResult
+        }
+      ]);
     }
-    
+
     return c.json({ success: true, id: result.id });
   } catch (error) {
     console.error("Failed to create tanzaku:", error);

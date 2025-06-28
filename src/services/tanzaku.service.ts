@@ -17,11 +17,11 @@ const validateTanzaku = async (ai: Ai, text: string) => {
         properties: {
           result: {
             type: "number",
-            enum: [0, 1],
-          },
-        },
-      },
-    },
+            enum: [0, 1]
+          }
+        }
+      }
+    }
   })) as unknown as AIResponse;
 
   if (
@@ -59,11 +59,14 @@ export class TanzakuService {
     this.prisma = new PrismaClient({ adapter });
   }
 
-  async createTanzaku(data: { content: string; userName: string }, ai: Ai | null = null) {
+  async createTanzaku(
+    data: { content: string; userName: string },
+    ai: Ai | null = null
+  ) {
     if (data.content.length > 14) {
       throw new Error("メッセージは14文字以内で入力してください");
     }
-    
+
     let validationResult = 0; // デフォルトは適切
     if (ai) {
       validationResult = await validateTanzaku(
@@ -75,14 +78,14 @@ export class TanzakuService {
     return await this.prisma.tanzaku.create({
       data: {
         ...data,
-        validationResult,
-      },
+        validationResult
+      }
     });
   }
 
   async getTanzakuById(id: string) {
     return await this.prisma.tanzaku.findUnique({
-      where: { id },
+      where: { id }
     });
   }
 
@@ -92,28 +95,28 @@ export class TanzakuService {
       where: {
         visiblePattern: true,
         validationResult: 0,
-        logicalDelete: false,
-      },
+        logicalDelete: false
+      }
     });
     if (checkexistance.length === 0) {
       await this.prisma.tanzaku.updateMany({
         where: {
-          visiblePattern: false,
+          visiblePattern: false
         },
-        data: { visiblePattern: true },
+        data: { visiblePattern: true }
       });
     }
 
     const result = await this.prisma.tanzaku.findMany({
       take: 20,
       orderBy: {
-        createdAt: "desc",
+        createdAt: "desc"
       },
       where: {
         visiblePattern: true,
         validationResult: 0,
-        logicalDelete: false,
-      },
+        logicalDelete: false
+      }
     });
 
     if (result.length === 0) {
@@ -122,9 +125,9 @@ export class TanzakuService {
 
     await this.prisma.tanzaku.updateMany({
       where: {
-        id: { in: result.map((r) => r.id) },
+        id: { in: result.map((r) => r.id) }
       },
-      data: { visiblePattern: false },
+      data: { visiblePattern: false }
     });
 
     return result;
@@ -133,8 +136,8 @@ export class TanzakuService {
   async getAllTanzaku() {
     return await this.prisma.tanzaku.findMany({
       orderBy: {
-        createdAt: "desc",
-      },
+        createdAt: "desc"
+      }
     });
   }
 
@@ -153,11 +156,11 @@ export class TanzakuService {
     if (deleteData.length > 0) {
       await this.prisma.tanzaku.updateMany({
         where: {
-          id: { in: deleteData.map((d) => d.id) },
+          id: { in: deleteData.map((d) => d.id) }
         },
         data: {
-          logicalDelete: true,
-        },
+          logicalDelete: true
+        }
       });
     }
 
@@ -169,8 +172,8 @@ export class TanzakuService {
             data: {
               content: d.content ?? undefined,
               userName: d.userName ?? undefined,
-              validationResult: d.validationResult ?? undefined,
-            },
+              validationResult: d.validationResult ?? undefined
+            }
           })
         )
       );
