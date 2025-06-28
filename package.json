@@ -35,6 +35,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@cloudflare/workers-types": "^4.20250517.0",
+    "@types/node": "^24.0.7",
     "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
     "wrangler": "^4.15.2"

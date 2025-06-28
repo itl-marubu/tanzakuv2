@@ -59,14 +59,21 @@ export class TanzakuService {
     this.prisma = new PrismaClient({ adapter });
   }
 
-  async createTanzaku(data: { content: string; userName: string }, ai: Ai) {
+  async createTanzaku(
+    data: { content: string; userName: string },
+    ai: Ai | null = null
+  ) {
     if (data.content.length > 14) {
       throw new Error("メッセージは14文字以内で入力してください");
     }
-    const validationResult = await validateTanzaku(
-      ai,
-      `${data.content}${data.userName}`
-    );
+
+    let validationResult = 0; // デフォルトは適切
+    if (ai) {
+      validationResult = await validateTanzaku(
+        ai,
+        `${data.content}${data.userName}`
+      );
+    }
 
     return await this.prisma.tanzaku.create({
       data: {
@@ -86,7 +93,9 @@ export class TanzakuService {
     const checkexistance = await this.prisma.tanzaku.findMany({
       take: 1,
       where: {
-        visiblePattern: true
+        visiblePattern: true,
+        validationResult: 0,
+        logicalDelete: false
       }
     });
     if (checkexistance.length === 0) {
@@ -104,7 +113,9 @@ export class TanzakuService {
         createdAt: "desc"
       },
       where: {
-        visiblePattern: true
+        visiblePattern: true,
+        validationResult: 0,
+        logicalDelete: false
       }
     });
 
@@ -136,22 +147,32 @@ export class TanzakuService {
       operation: "delete" | "update";
       content?: string;
       userName?: string;
+      validationResult?: number;
     }[]
   ) {
-    if (data.some((d) => d.operation === "delete")) {
-      await this.prisma.tanzaku.deleteMany({
+    const deleteData = data.filter((d) => d.operation === "delete");
+    const updateData = data.filter((d) => d.operation === "update");
+
+    if (deleteData.length > 0) {
+      await this.prisma.tanzaku.updateMany({
         where: {
-          id: { in: data.map((d) => d.id) }
+          id: { in: deleteData.map((d) => d.id) }
+        },
+        data: {
+          logicalDelete: true
         }
       });
-    } else {
+    }
+
+    if (updateData.length > 0) {
       await Promise.all(
-        data.map((d) =>
+        updateData.map((d) =>
           this.prisma.tanzaku.update({
             where: { id: d.id },
             data: {
               content: d.content ?? undefined,
-              userName: d.userName ?? undefined
+              userName: d.userName ?? undefined,
+              validationResult: d.validationResult ?? undefined
             }
           })
         )
