@@ -108,7 +108,7 @@ export class TanzakuService {
     }
 
     const result = await this.prisma.tanzaku.findMany({
-      take: 20,
+      take: 10,
       orderBy: {
         createdAt: "desc"
       },
