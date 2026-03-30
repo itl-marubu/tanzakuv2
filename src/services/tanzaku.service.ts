@@ -89,7 +89,9 @@ export class TanzakuService {
     });
   }
 
-  async getTwentyTanzaku() {
+  async getTwentyTanzaku(limit = 10) {
+    const safeLimit = Math.min(30, Math.max(1, Math.floor(limit)));
+
     const checkexistance = await this.prisma.tanzaku.findMany({
       take: 1,
       where: {
@@ -108,7 +110,7 @@ export class TanzakuService {
     }
 
     const result = await this.prisma.tanzaku.findMany({
-      take: 10,
+      take: safeLimit,
       orderBy: {
         createdAt: "desc"
       },
