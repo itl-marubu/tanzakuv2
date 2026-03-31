@@ -47,7 +47,7 @@ tanzaku.get("/client", async (c) => {
   const parsedLimit = Number.parseInt(limitQuery ?? "", 10);
   const limit =
     Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 10;
-  const result = await service.getTwentyTanzaku(limit);
+  const result = await service.getClientTanzaku(limit);
 
   return c.json(result);
 });
