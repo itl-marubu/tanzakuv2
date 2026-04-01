@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
 import { TanzakuService } from "../services/tanzaku.service";
+import { EventService } from "../services/event.service";
 
 const manage = new Hono<{ Bindings: CloudflareBindings }>();
 
@@ -353,6 +354,65 @@ const adminHtml = `<!DOCTYPE html>
             background-color: #95a5a6;
             color: white;
         }
+
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .sortable:hover {
+            background-color: #2c3e50;
+        }
+        .sort-icon {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        .event-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .event-header {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background-color: #34495e;
+            color: white;
+            user-select: none;
+        }
+
+        .event-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .event-header .active-badge {
+            font-size: 0.9rem;
+            opacity: 0.85;
+        }
+
+        .event-header .toggle-arrow {
+            margin-left: auto;
+        }
+
+        .event-body {
+            display: none;
+        }
+
+        .event-create {
+            padding: 1rem 1.5rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            border-bottom: 1px solid #ecf0f1;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
@@ -382,6 +442,36 @@ const adminHtml = `<!DOCTYPE html>
             </div>
         </div>
         
+        <div class="event-section">
+            <div class="event-header" onclick="toggleEventSection()">
+                <h2>イベント管理</h2>
+                <span class="active-badge" id="activeEventBadge">読み込み中...</span>
+                <span class="toggle-arrow" id="eventArrow">▼</span>
+            </div>
+            <div class="event-body" id="eventBody">
+                <div class="event-create">
+                    <input type="text" id="newEventName" class="form-input" style="width:180px" placeholder="イベント名（例: 七夕2025）">
+                    <input type="text" id="newEventDescription" class="form-input" style="width:240px" placeholder="説明（任意）">
+                    <button class="btn btn-primary" onclick="submitCreateEvent()">作成</button>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>イベント名</th>
+                            <th>説明</th>
+                            <th>短冊数</th>
+                            <th>状態</th>
+                            <th>作成日時</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventTableBody">
+                        <tr><td colspan="6" class="loading">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="actions">
             <div class="search-box">
                 <input type="text" class="search-input" id="searchInput" placeholder="内容またはユーザー名で検索..." onkeyup="performSearch()">
@@ -396,6 +486,10 @@ const adminHtml = `<!DOCTYPE html>
                 <button class="btn btn-warning" onclick="showValid()">適切のみ</button>
                 <button class="btn btn-warning" onclick="showInvalid()">不適切のみ</button>
                 <button class="btn btn-warning" onclick="showDeleted()">削除済みのみ</button>
+                <select id="eventFilterSelect" class="form-select" style="width:auto;display:inline-block;margin-left:0.5rem" onchange="applyEventFilter()">
+                    <option value="all">イベント: すべて</option>
+                    <option value="null">レガシー（なし）</option>
+                </select>
             </div>
         </div>
         
@@ -414,18 +508,19 @@ const adminHtml = `<!DOCTYPE html>
                 <thead>
                     <tr>
                         <th>選択</th>
-                        <th>ID</th>
-                        <th>内容</th>
-                        <th>ユーザー名</th>
-                        <th>バリデーション</th>
+                        <th class="sortable" onclick="sortBy('id')">ID <span class="sort-icon" id="sort-id"></span></th>
+                        <th class="sortable" onclick="sortBy('content')">内容 <span class="sort-icon" id="sort-content"></span></th>
+                        <th class="sortable" onclick="sortBy('userName')">ユーザー名 <span class="sort-icon" id="sort-userName"></span></th>
+                        <th class="sortable" onclick="sortBy('validationResult')">バリデーション <span class="sort-icon" id="sort-validationResult"></span></th>
                         <th>表示状態</th>
-                        <th>作成日時</th>
+                        <th class="sortable" onclick="sortBy('event')">イベント <span class="sort-icon" id="sort-event"></span></th>
+                        <th class="sortable" onclick="sortBy('createdAt')">作成日時 <span class="sort-icon" id="sort-createdAt">▼</span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="tanzakuTableBody">
                     <tr>
-                        <td colspan="8" class="loading">データを読み込み中...</td>
+                        <td colspan="9" class="loading">データを読み込み中...</td>
                     </tr>
                 </tbody>
             </table>
@@ -455,6 +550,12 @@ const adminHtml = `<!DOCTYPE html>
                         <option value="1">不適切</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="editEvent">イベント</label>
+                    <select id="editEvent" class="form-select">
+                        <option value="">レガシー（なし）</option>
+                    </select>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
                     <button type="submit" class="btn btn-primary" id="submitBtn">保存</button>
@@ -468,6 +569,9 @@ const adminHtml = `<!DOCTYPE html>
         let filteredTanzaku = [];
         let searchTerm = '';
         let currentEditId = null;
+        let sortColumn = 'createdAt';
+        let sortDirection = 'desc';
+        let activeEventFilter = 'all';
         
         async function loadData() {
             try {
@@ -476,7 +580,7 @@ const adminHtml = `<!DOCTYPE html>
                 if (!response.ok) throw new Error('データの取得に失敗しました');
                 
                 allTanzaku = await response.json();
-                filteredTanzaku = [...allTanzaku];
+                filteredTanzaku = applyBaseFilter(allTanzaku);
                 applySearch();
                 updateStats();
                 renderTable();
@@ -501,28 +605,73 @@ const adminHtml = `<!DOCTYPE html>
         
         function renderTable() {
             const tbody = document.getElementById('tanzakuTableBody');
-            
+
             if (filteredTanzaku.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="loading">データがありません</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="loading">データがありません</td></tr>';
                 return;
             }
-            
-            tbody.innerHTML = filteredTanzaku.map(tanzaku => \`
-                <tr>
-                    <td><input type="checkbox" class="checkbox tanzaku-checkbox" value="\${tanzaku.id}" onchange="updateBulkActions()"></td>
-                    <td>\${tanzaku.id.substring(0, 8)}...</td>
-                    <td>\${escapeHtml(tanzaku.content)}</td>
-                    <td>\${escapeHtml(tanzaku.userName)}</td>
-                    <td><span class="validation-badge \${tanzaku.validationResult === 0 ? 'validation-ok' : 'validation-ng'}">\${tanzaku.validationResult === 0 ? '適切' : '不適切'}</span></td>
-                    <td><span class="status-badge \${getStatusClass(tanzaku)}">\${getStatusText(tanzaku)}</span></td>
-                    <td>\${new Date(tanzaku.createdAt).toLocaleString('ja-JP')}</td>
-                    <td>
-                        <button class="btn btn-primary" onclick="showEditModal('\${tanzaku.id}', '\${escapeHtml(tanzaku.content)}', '\${escapeHtml(tanzaku.userName)}', \${tanzaku.validationResult})">編集</button>
-                        \${!tanzaku.logicalDelete ? \`<button class="btn btn-danger" onclick="deleteTanzaku('\${tanzaku.id}')">削除</button>\` : ''}
-                        <button class="btn btn-primary" onclick="toggleValidation('\${tanzaku.id}', \${tanzaku.validationResult === 0 ? 1 : 0})">\${tanzaku.validationResult === 0 ? '不適切にする' : '適切にする'}</button>
-                    </td>
-                </tr>
-            \`).join('');
+
+            const sorted = sortTanzaku(filteredTanzaku);
+            updateSortIcons();
+
+            tbody.innerHTML = sorted.map(function(tanzaku) {
+                var eventName = tanzaku.event ? escapeHtml(tanzaku.event.name) : '<span style="color:#aaa">-</span>';
+                var eventId = tanzaku.event ? tanzaku.event.id : '';
+                return '<tr>' +
+                    '<td><input type="checkbox" class="checkbox tanzaku-checkbox" value="' + tanzaku.id + '" onchange="updateBulkActions()"></td>' +
+                    '<td>' + tanzaku.id.substring(0, 8) + '...</td>' +
+                    '<td>' + escapeHtml(tanzaku.content) + '</td>' +
+                    '<td>' + escapeHtml(tanzaku.userName) + '</td>' +
+                    '<td><span class="validation-badge ' + (tanzaku.validationResult === 0 ? 'validation-ok' : 'validation-ng') + '">' + (tanzaku.validationResult === 0 ? '適切' : '不適切') + '</span></td>' +
+                    '<td><span class="status-badge ' + getStatusClass(tanzaku) + '">' + getStatusText(tanzaku) + '</span></td>' +
+                    '<td>' + eventName + '</td>' +
+                    '<td>' + new Date(tanzaku.createdAt).toLocaleString('ja-JP') + '</td>' +
+                    '<td>' +
+                        '<button class="btn btn-primary" onclick="showEditModal(' + jsArg(tanzaku.id) + ', ' + jsArg(tanzaku.content) + ', ' + jsArg(tanzaku.userName) + ', ' + tanzaku.validationResult + ', ' + jsArg(eventId) + ')">編集</button>' +
+                        (!tanzaku.logicalDelete ? '<button class="btn btn-danger" onclick="deleteTanzaku(' + jsArg(tanzaku.id) + ')">削除</button>' : '') +
+                        '<button class="btn btn-primary" onclick="toggleValidation(' + jsArg(tanzaku.id) + ', ' + (tanzaku.validationResult === 0 ? 1 : 0) + ')">' + (tanzaku.validationResult === 0 ? '不適切にする' : '適切にする') + '</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function sortTanzaku(list) {
+            return list.slice().sort(function(a, b) {
+                var aVal, bVal;
+                if (sortColumn === 'event') {
+                    aVal = a.event ? a.event.name : '';
+                    bVal = b.event ? b.event.name : '';
+                } else {
+                    aVal = a[sortColumn] ?? '';
+                    bVal = b[sortColumn] ?? '';
+                }
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function sortBy(col) {
+            if (sortColumn === col) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = col;
+                sortDirection = 'asc';
+            }
+            renderTable();
+        }
+
+        function updateSortIcons() {
+            var cols = ['id', 'content', 'userName', 'validationResult', 'event', 'createdAt'];
+            cols.forEach(function(col) {
+                var el = document.getElementById('sort-' + col);
+                if (!el) return;
+                if (col === sortColumn) {
+                    el.textContent = sortDirection === 'asc' ? '▲' : '▼';
+                } else {
+                    el.textContent = '';
+                }
+            });
         }
         
         function getStatusClass(tanzaku) {
@@ -539,6 +688,10 @@ const adminHtml = `<!DOCTYPE html>
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function jsArg(val) {
+            return JSON.stringify(val).replace(/"/g, '&quot;');
         }
         
         async function deleteTanzaku(id) {
@@ -577,28 +730,42 @@ const adminHtml = `<!DOCTYPE html>
             }
         }
         
+        function applyBaseFilter(base) {
+            var ef = activeEventFilter;
+            return base.filter(function(t) {
+                if (ef === 'null') return t.eventId === null || t.eventId === undefined;
+                if (ef !== 'all') return t.eventId === ef;
+                return true;
+            });
+        }
+
         function showAll() {
-            filteredTanzaku = [...allTanzaku];
+            filteredTanzaku = applyBaseFilter(allTanzaku);
             applySearch();
             renderTable();
         }
-        
+
         function showValid() {
-            filteredTanzaku = allTanzaku.filter(t => t.validationResult === 0 && !t.logicalDelete);
+            filteredTanzaku = applyBaseFilter(allTanzaku.filter(function(t) { return t.validationResult === 0 && !t.logicalDelete; }));
             applySearch();
             renderTable();
         }
-        
+
         function showInvalid() {
-            filteredTanzaku = allTanzaku.filter(t => t.validationResult === 1 && !t.logicalDelete);
+            filteredTanzaku = applyBaseFilter(allTanzaku.filter(function(t) { return t.validationResult === 1 && !t.logicalDelete; }));
             applySearch();
             renderTable();
         }
-        
+
         function showDeleted() {
-            filteredTanzaku = allTanzaku.filter(t => t.logicalDelete);
+            filteredTanzaku = applyBaseFilter(allTanzaku.filter(function(t) { return t.logicalDelete; }));
             applySearch();
             renderTable();
+        }
+
+        function applyEventFilter() {
+            activeEventFilter = document.getElementById('eventFilterSelect').value;
+            showAll();
         }
         
         function performSearch() {
@@ -731,6 +898,18 @@ const adminHtml = `<!DOCTYPE html>
             }, 3000);
         }
         
+        function populateEventSelect(selectedId) {
+            var sel = document.getElementById('editEvent');
+            sel.innerHTML = '<option value="">レガシー（なし）</option>';
+            allEvents.forEach(function(ev) {
+                var opt = document.createElement('option');
+                opt.value = ev.id;
+                opt.textContent = ev.name + (ev.isActive ? ' ★' : '');
+                if (ev.id === selectedId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
         function showCreateModal() {
             currentEditId = null;
             document.getElementById('modalTitle').textContent = '新規短冊作成';
@@ -738,16 +917,18 @@ const adminHtml = `<!DOCTYPE html>
             document.getElementById('editContent').value = '';
             document.getElementById('editUserName').value = '';
             document.getElementById('editValidation').value = '0';
+            populateEventSelect('');
             document.getElementById('editModal').style.display = 'block';
         }
-        
-        function showEditModal(id, content, userName, validationResult) {
+
+        function showEditModal(id, content, userName, validationResult, eventId) {
             currentEditId = id;
             document.getElementById('modalTitle').textContent = '短冊を編集';
             document.getElementById('submitBtn').textContent = '更新';
             document.getElementById('editContent').value = content;
             document.getElementById('editUserName').value = userName;
             document.getElementById('editValidation').value = validationResult.toString();
+            populateEventSelect(eventId || '');
             document.getElementById('editModal').style.display = 'block';
         }
         
@@ -771,17 +952,18 @@ const adminHtml = `<!DOCTYPE html>
             const content = document.getElementById('editContent').value.trim();
             const userName = document.getElementById('editUserName').value.trim();
             const validationResult = parseInt(document.getElementById('editValidation').value);
-            
+            const eventIdVal = document.getElementById('editEvent').value || null;
+
             if (!content || !userName) {
                 showMessage('内容とユーザー名は必須です', 'error');
                 return;
             }
-            
+
             if (content.length > 14) {
                 showMessage('内容は14文字以内で入力してください', 'error');
                 return;
             }
-            
+
             try {
                 if (currentEditId) {
                     // 編集
@@ -793,10 +975,11 @@ const adminHtml = `<!DOCTYPE html>
                             operation: 'update',
                             content,
                             userName,
-                            validationResult
+                            validationResult,
+                            eventId: eventIdVal
                         }])
                     });
-                    
+
                     if (!response.ok) throw new Error('更新に失敗しました');
                     showMessage('短冊を更新しました', 'success');
                 } else {
@@ -807,10 +990,11 @@ const adminHtml = `<!DOCTYPE html>
                         body: JSON.stringify({
                             content,
                             userName,
-                            validationResult
+                            validationResult,
+                            eventId: eventIdVal
                         })
                     });
-                    
+
                     if (!response.ok) throw new Error('作成に失敗しました');
                     showMessage('新しい短冊を作成しました', 'success');
                 }
@@ -871,8 +1055,123 @@ const adminHtml = `<!DOCTYPE html>
             showMessage(\`\${filteredTanzaku.length}件のデータをCSVで出力しました\`, 'success');
         }
         
+        // イベント管理
+        let allEvents = [];
+
+        async function loadEvents() {
+            try {
+                const response = await fetch('/manage/events');
+                if (!response.ok) throw new Error('イベントの取得に失敗しました');
+                allEvents = await response.json();
+                renderEvents();
+                updateEventFilterOptions();
+            } catch (error) {
+                showMessage('イベント取得エラー: ' + error.message, 'error');
+            }
+        }
+
+        function updateEventFilterOptions() {
+            var sel = document.getElementById('eventFilterSelect');
+            var current = sel.value;
+            sel.innerHTML = '<option value="all">イベント: すべて</option><option value="null">レガシー（なし）</option>';
+            allEvents.forEach(function(ev) {
+                var opt = document.createElement('option');
+                opt.value = ev.id;
+                opt.textContent = ev.name + (ev.isActive ? ' ★' : '');
+                sel.appendChild(opt);
+            });
+            sel.value = current;
+        }
+
+        function renderEvents() {
+            const activeEvent = allEvents.find(function(e) { return e.isActive; });
+            document.getElementById('activeEventBadge').textContent =
+                'アクティブ: ' + (activeEvent ? activeEvent.name : 'なし（レガシーデータ表示中）');
+
+            const tbody = document.getElementById('eventTableBody');
+            if (allEvents.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading">イベントがありません</td></tr>';
+                return;
+            }
+            tbody.innerHTML = allEvents.map(function(event) {
+                var statusCell = event.isActive
+                    ? '<span class="status-badge status-visible">アクティブ</span>'
+                    : '';
+                var actionBtn = event.isActive
+                    ? '<button class="btn btn-warning" onclick="deactivateAllEvents()">無効にする</button>'
+                    : '<button class="btn btn-primary" data-event-id="' + event.id.replace(/"/g, '&quot;') + '" onclick="activateEvent(this.getAttribute(\\'data-event-id\\'))">アクティブにする</button>';
+                return '<tr>' +
+                    '<td>' + escapeHtml(event.name) + '</td>' +
+                    '<td>' + (event.description ? escapeHtml(event.description) : '-') + '</td>' +
+                    '<td>' + event._count.tanzakus + '件</td>' +
+                    '<td>' + statusCell + '</td>' +
+                    '<td>' + new Date(event.createdAt).toLocaleString('ja-JP') + '</td>' +
+                    '<td>' + actionBtn + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        function toggleEventSection() {
+            const body = document.getElementById('eventBody');
+            const arrow = document.getElementById('eventArrow');
+            if (body.style.display === 'none' || body.style.display === '') {
+                body.style.display = 'block';
+                arrow.textContent = '▲';
+            } else {
+                body.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
+
+        async function submitCreateEvent() {
+            const name = document.getElementById('newEventName').value.trim();
+            const description = document.getElementById('newEventDescription').value.trim();
+            if (!name) { showMessage('イベント名は必須です', 'error'); return; }
+
+            try {
+                const body = { name: name };
+                if (description) body.description = description;
+                const response = await fetch('/manage/events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) throw new Error('作成に失敗しました');
+                document.getElementById('newEventName').value = '';
+                document.getElementById('newEventDescription').value = '';
+                showMessage('イベントを作成しました', 'success');
+                loadEvents();
+            } catch (error) {
+                showMessage('エラー: ' + error.message, 'error');
+            }
+        }
+
+        async function activateEvent(id) {
+            try {
+                const response = await fetch('/manage/events/' + id + '/activate', { method: 'POST' });
+                if (!response.ok) throw new Error('切り替えに失敗しました');
+                showMessage('イベントを切り替えました', 'success');
+                loadEvents();
+                loadData();
+            } catch (error) {
+                showMessage('エラー: ' + error.message, 'error');
+            }
+        }
+
+        async function deactivateAllEvents() {
+            try {
+                const response = await fetch('/manage/events/deactivate-all', { method: 'POST' });
+                if (!response.ok) throw new Error('無効化に失敗しました');
+                showMessage('イベントを無効にしました', 'success');
+                loadEvents();
+                loadData();
+            } catch (error) {
+                showMessage('エラー: ' + error.message, 'error');
+            }
+        }
+
         // ページ読み込み時にデータを取得
-        window.addEventListener('load', loadData);
+        window.addEventListener('load', function() { loadData(); loadEvents(); });
     </script>
 </body>
 </html>`;
@@ -899,6 +1198,7 @@ manage.post("/tanzakus/create", async (c) => {
       content: string;
       userName: string;
       validationResult?: number;
+      eventId?: string | null;
     };
 
     // バリデーション結果が指定されていない場合は0（適切）にする
@@ -909,13 +1209,14 @@ manage.post("/tanzakus/create", async (c) => {
       null // AI validation is skipped in manage mode
     );
 
-    // 管理画面で作成する場合は指定されたバリデーション結果を使用
-    if (data.validationResult !== undefined) {
+    // 管理画面で作成する場合は指定されたバリデーション結果・イベントを使用
+    if (data.validationResult !== undefined || data.eventId !== undefined) {
       await service.editTanzaku([
         {
           id: result.id,
           operation: "update",
-          validationResult: validationResult
+          validationResult: validationResult,
+          eventId: data.eventId
         }
       ]);
     }
@@ -949,6 +1250,56 @@ manage.post("/tanzakus", async (c) => {
   } catch (error) {
     console.error("Failed to edit tanzakus:", error);
     return c.json({ error: "Failed to edit tanzakus" }, 500);
+  }
+});
+
+manage.get("/events", async (c) => {
+  const service = new EventService(c.env.DB);
+  try {
+    const events = await service.getAllEvents();
+    return c.json(events);
+  } catch (error) {
+    console.error("Failed to get events:", error);
+    return c.json({ error: "Failed to get events" }, 500);
+  }
+});
+
+manage.post("/events", async (c) => {
+  const service = new EventService(c.env.DB);
+  try {
+    const data = await c.req.json<{
+      name: string;
+      description?: string;
+    }>();
+    const event = await service.createEvent(data);
+    return c.json({ success: true, id: event.id });
+  } catch (error) {
+    console.error("Failed to create event:", error);
+    return c.json({ error: "Failed to create event" }, 500);
+  }
+});
+
+// 静的ルートを :id より先に登録
+manage.post("/events/deactivate-all", async (c) => {
+  const service = new EventService(c.env.DB);
+  try {
+    await service.deactivateAll();
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to deactivate events:", error);
+    return c.json({ error: "Failed to deactivate events" }, 500);
+  }
+});
+
+manage.post("/events/:id/activate", async (c) => {
+  const service = new EventService(c.env.DB);
+  try {
+    const { id } = c.req.param();
+    await service.activateEvent(id);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to activate event:", error);
+    return c.json({ error: "Failed to activate event" }, 500);
   }
 });
 
