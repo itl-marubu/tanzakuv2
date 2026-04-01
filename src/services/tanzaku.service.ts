@@ -161,7 +161,7 @@ export class TanzakuService {
   async editTanzaku(
     data: {
       id: string;
-      operation: "delete" | "update";
+      operation: "delete" | "hardDelete" | "update";
       content?: string;
       userName?: string;
       validationResult?: number;
@@ -169,6 +169,7 @@ export class TanzakuService {
     }[]
   ) {
     const deleteData = data.filter((d) => d.operation === "delete");
+    const hardDeleteData = data.filter((d) => d.operation === "hardDelete");
     const updateData = data.filter((d) => d.operation === "update");
 
     if (deleteData.length > 0) {
@@ -178,6 +179,14 @@ export class TanzakuService {
         },
         data: {
           logicalDelete: true
+        }
+      });
+    }
+
+    if (hardDeleteData.length > 0) {
+      await this.prisma.tanzaku.deleteMany({
+        where: {
+          id: { in: hardDeleteData.map((d) => d.id) }
         }
       });
     }

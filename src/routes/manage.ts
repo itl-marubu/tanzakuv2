@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
-import { TanzakuService } from "../services/tanzaku.service";
 import { EventService } from "../services/event.service";
+import { TanzakuService } from "../services/tanzaku.service";
 
 const manage = new Hono<{ Bindings: CloudflareBindings }>();
 
@@ -500,6 +500,7 @@ const adminHtml = `<!DOCTYPE html>
                     全選択
                 </label>
                 <button class="btn btn-danger" onclick="bulkDelete()">選択項目を削除</button>
+                <button class="btn btn-danger" onclick="bulkHardDelete()">選択項目を完全削除</button>
                 <button class="btn btn-primary" onclick="bulkMarkValid()">選択項目を適切にする</button>
                 <button class="btn btn-warning" onclick="bulkMarkInvalid()">選択項目を不適切にする</button>
             </div>
@@ -629,6 +630,7 @@ const adminHtml = `<!DOCTYPE html>
                     '<td>' +
                         '<button class="btn btn-primary" onclick="showEditModal(' + jsArg(tanzaku.id) + ', ' + jsArg(tanzaku.content) + ', ' + jsArg(tanzaku.userName) + ', ' + tanzaku.validationResult + ', ' + jsArg(eventId) + ')">編集</button>' +
                         (!tanzaku.logicalDelete ? '<button class="btn btn-danger" onclick="deleteTanzaku(' + jsArg(tanzaku.id) + ')">削除</button>' : '') +
+                        (tanzaku.logicalDelete ? '<button class="btn btn-danger" onclick="hardDeleteTanzaku(' + jsArg(tanzaku.id) + ')">完全削除</button>' : '') +
                         '<button class="btn btn-primary" onclick="toggleValidation(' + jsArg(tanzaku.id) + ', ' + (tanzaku.validationResult === 0 ? 1 : 0) + ')">' + (tanzaku.validationResult === 0 ? '不適切にする' : '適切にする') + '</button>' +
                     '</td>' +
                 '</tr>';
@@ -707,6 +709,25 @@ const adminHtml = `<!DOCTYPE html>
                 if (!response.ok) throw new Error('削除に失敗しました');
                 
                 showMessage('削除しました', 'success');
+                loadData();
+            } catch (error) {
+                showMessage(\`エラー: \${error.message}\`, 'error');
+            }
+        }
+
+        async function hardDeleteTanzaku(id) {
+            if (!confirm('この短冊を完全削除しますか？この操作は元に戻せません。')) return;
+
+            try {
+                const response = await fetch('/manage/tanzakus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify([{ id, operation: 'hardDelete' }])
+                });
+
+                if (!response.ok) throw new Error('完全削除に失敗しました');
+
+                showMessage('完全削除しました', 'success');
                 loadData();
             } catch (error) {
                 showMessage(\`エラー: \${error.message}\`, 'error');
@@ -835,6 +856,30 @@ const adminHtml = `<!DOCTYPE html>
                 if (!response.ok) throw new Error('一括削除に失敗しました');
                 
                 showMessage(\`\${selected.length}件を削除しました\`, 'success');
+                document.getElementById('selectAll').checked = false;
+                updateBulkActions();
+                loadData();
+            } catch (error) {
+                showMessage(\`エラー: \${error.message}\`, 'error');
+            }
+        }
+
+        async function bulkHardDelete() {
+            const selected = Array.from(document.querySelectorAll('.tanzaku-checkbox:checked')).map(cb => cb.value);
+            if (selected.length === 0) return;
+
+            if (!confirm(\`\${selected.length}件の短冊を完全削除しますか？この操作は元に戻せません。\`)) return;
+
+            try {
+                const response = await fetch('/manage/tanzakus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(selected.map(id => ({ id, operation: 'hardDelete' })))
+                });
+
+                if (!response.ok) throw new Error('一括完全削除に失敗しました');
+
+                showMessage(\`\${selected.length}件を完全削除しました\`, 'success');
                 document.getElementById('selectAll').checked = false;
                 updateBulkActions();
                 loadData();
@@ -1235,6 +1280,10 @@ manage.post("/tanzakus", async (c) => {
       | {
           id: string;
           operation: "delete";
+        }
+      | {
+          id: string;
+          operation: "hardDelete";
         }
       | {
           id: string;
