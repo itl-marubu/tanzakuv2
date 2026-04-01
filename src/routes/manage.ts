@@ -627,9 +627,9 @@ const adminHtml = `<!DOCTYPE html>
                     '<td>' + eventName + '</td>' +
                     '<td>' + new Date(tanzaku.createdAt).toLocaleString('ja-JP') + '</td>' +
                     '<td>' +
-                        '<button class="btn btn-primary" onclick="showEditModal(\\'' + tanzaku.id + '\\', \\'' + escapeHtml(tanzaku.content) + '\\', \\'' + escapeHtml(tanzaku.userName) + '\\', ' + tanzaku.validationResult + ', \\'' + eventId + '\\')">編集</button>' +
-                        (!tanzaku.logicalDelete ? '<button class="btn btn-danger" onclick="deleteTanzaku(\\'' + tanzaku.id + '\\')">削除</button>' : '') +
-                        '<button class="btn btn-primary" onclick="toggleValidation(\\'' + tanzaku.id + '\\', ' + (tanzaku.validationResult === 0 ? 1 : 0) + ')">' + (tanzaku.validationResult === 0 ? '不適切にする' : '適切にする') + '</button>' +
+                        '<button class="btn btn-primary" onclick="showEditModal(' + jsArg(tanzaku.id) + ', ' + jsArg(tanzaku.content) + ', ' + jsArg(tanzaku.userName) + ', ' + tanzaku.validationResult + ', ' + jsArg(eventId) + ')">編集</button>' +
+                        (!tanzaku.logicalDelete ? '<button class="btn btn-danger" onclick="deleteTanzaku(' + jsArg(tanzaku.id) + ')">削除</button>' : '') +
+                        '<button class="btn btn-primary" onclick="toggleValidation(' + jsArg(tanzaku.id) + ', ' + (tanzaku.validationResult === 0 ? 1 : 0) + ')">' + (tanzaku.validationResult === 0 ? '不適切にする' : '適切にする') + '</button>' +
                     '</td>' +
                 '</tr>';
             }).join('');
@@ -688,6 +688,10 @@ const adminHtml = `<!DOCTYPE html>
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function jsArg(val) {
+            return JSON.stringify(val).replace(/"/g, '&quot;');
         }
         
         async function deleteTanzaku(id) {
@@ -1095,7 +1099,7 @@ const adminHtml = `<!DOCTYPE html>
                     : '';
                 var actionBtn = event.isActive
                     ? '<button class="btn btn-warning" onclick="deactivateAllEvents()">無効にする</button>'
-                    : '<button class="btn btn-primary" data-event-id="' + escapeHtml(event.id) + '" onclick="activateEvent(this.getAttribute(\\'data-event-id\\'))">アクティブにする</button>';
+                    : '<button class="btn btn-primary" data-event-id="' + event.id.replace(/"/g, '&quot;') + '" onclick="activateEvent(this.getAttribute(\\'data-event-id\\'))">アクティブにする</button>';
                 return '<tr>' +
                     '<td>' + escapeHtml(event.name) + '</td>' +
                     '<td>' + (event.description ? escapeHtml(event.description) : '-') + '</td>' +
@@ -1264,7 +1268,6 @@ manage.post("/events", async (c) => {
   const service = new EventService(c.env.DB);
   try {
     const data = await c.req.json<{
-      id?: string;
       name: string;
       description?: string;
     }>();

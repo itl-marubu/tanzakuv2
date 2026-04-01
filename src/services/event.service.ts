@@ -9,7 +9,7 @@ export class EventService {
     this.prisma = new PrismaClient({ adapter });
   }
 
-  async createEvent(data: { id?: string; name: string; description?: string }) {
+  async createEvent(data: { name: string; description?: string }) {
     return await this.prisma.event.create({ data });
   }
 
