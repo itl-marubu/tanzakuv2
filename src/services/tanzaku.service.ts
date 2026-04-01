@@ -75,10 +75,15 @@ export class TanzakuService {
       );
     }
 
+    const activeEvent = await this.prisma.event.findFirst({
+      where: { isActive: true }
+    });
+
     return await this.prisma.tanzaku.create({
       data: {
         ...data,
-        validationResult
+        validationResult,
+        eventId: activeEvent?.id ?? null
       }
     });
   }
@@ -90,18 +95,25 @@ export class TanzakuService {
   }
 
   async getTwentyTanzaku() {
+    const activeEvent = await this.prisma.event.findFirst({
+      where: { isActive: true }
+    });
+    const eventFilter = { eventId: activeEvent?.id ?? null };
+
     const checkexistance = await this.prisma.tanzaku.findMany({
       take: 1,
       where: {
         visiblePattern: true,
         validationResult: 0,
-        logicalDelete: false
+        logicalDelete: false,
+        ...eventFilter
       }
     });
     if (checkexistance.length === 0) {
       await this.prisma.tanzaku.updateMany({
         where: {
-          visiblePattern: false
+          visiblePattern: false,
+          ...eventFilter
         },
         data: { visiblePattern: true }
       });
@@ -115,12 +127,13 @@ export class TanzakuService {
       where: {
         visiblePattern: true,
         validationResult: 0,
-        logicalDelete: false
+        logicalDelete: false,
+        ...eventFilter
       }
     });
 
     if (result.length === 0) {
-      throw new Error("Tanzaku not found");
+      return [];
     }
 
     await this.prisma.tanzaku.updateMany({
@@ -137,6 +150,9 @@ export class TanzakuService {
     return await this.prisma.tanzaku.findMany({
       orderBy: {
         createdAt: "desc"
+      },
+      include: {
+        event: { select: { id: true, name: true } }
       }
     });
   }
@@ -148,6 +164,7 @@ export class TanzakuService {
       content?: string;
       userName?: string;
       validationResult?: number;
+      eventId?: string | null;
     }[]
   ) {
     const deleteData = data.filter((d) => d.operation === "delete");
@@ -172,7 +189,8 @@ export class TanzakuService {
             data: {
               content: d.content ?? undefined,
               userName: d.userName ?? undefined,
-              validationResult: d.validationResult ?? undefined
+              validationResult: d.validationResult ?? undefined,
+              ...(d.eventId !== undefined ? { eventId: d.eventId } : {})
             }
           })
         )

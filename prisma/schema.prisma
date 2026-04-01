@@ -55,12 +55,23 @@ model RefreshToken {
   userId    String
 }
 
+model Event {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  tanzakus    Tanzaku[]
+}
+
 model Tanzaku {
-  id             String   @id @default(uuid())
-  content        String
-  userName       String
-  visiblePattern Boolean  @default(true)
-  validationResult Int    @default(0)
-  logicalDelete  Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id               String   @id @default(uuid())
+  content          String
+  userName         String
+  visiblePattern   Boolean  @default(true)
+  validationResult Int      @default(0)
+  logicalDelete    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  eventId          String?
+  event            Event?   @relation(fields: [eventId], references: [id])
 }

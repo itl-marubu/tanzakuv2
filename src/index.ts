@@ -24,5 +24,6 @@ app.use(
 app.route("/auth", auth);
 // app.route("/admin", admin);
 app.route("/tanzaku", tanzaku);
+app.get("/manage/", (c) => c.redirect("/manage"));
 app.route("/manage", manage);
 export default app;

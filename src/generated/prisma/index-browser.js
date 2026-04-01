@@ -150,6 +150,14 @@ exports.Prisma.RefreshTokenScalarFieldEnum = {
   userId: 'userId'
 };
 
+exports.Prisma.EventScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  description: 'description',
+  isActive: 'isActive',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.TanzakuScalarFieldEnum = {
   id: 'id',
   content: 'content',
@@ -157,7 +165,8 @@ exports.Prisma.TanzakuScalarFieldEnum = {
   visiblePattern: 'visiblePattern',
   validationResult: 'validationResult',
   logicalDelete: 'logicalDelete',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  eventId: 'eventId'
 };
 
 exports.Prisma.SortOrder = {
@@ -176,6 +185,7 @@ exports.Prisma.ModelName = {
   GoogleOauth: 'GoogleOauth',
   GitHubOauth: 'GitHubOauth',
   RefreshToken: 'RefreshToken',
+  Event: 'Event',
   Tanzaku: 'Tanzaku'
 };
 
