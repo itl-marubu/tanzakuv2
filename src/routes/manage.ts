@@ -1263,7 +1263,11 @@ manage.get("/events", async (c) => {
 manage.post("/events", async (c) => {
   const service = new EventService(c.env.DB);
   try {
-    const data = await c.req.json<{ id?: string; name: string; description?: string }>();
+    const data = await c.req.json<{
+      id?: string;
+      name: string;
+      description?: string;
+    }>();
     const event = await service.createEvent(data);
     return c.json({ success: true, id: event.id });
   } catch (error) {
