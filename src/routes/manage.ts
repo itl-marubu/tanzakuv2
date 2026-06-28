@@ -423,6 +423,7 @@ const adminHtml = `<!DOCTYPE html>
     <div class="container">
         <div id="message"></div>
         
+        <div class="stats-scope" id="statsScope" style="margin-bottom:0.5rem;color:#666;font-size:0.85rem"></div>
         <div class="stats">
             <div class="stat-card">
                 <div class="stat-number" id="totalCount">-</div>
@@ -581,6 +582,9 @@ const adminHtml = `<!DOCTYPE html>
                 if (!response.ok) throw new Error('データの取得に失敗しました');
                 
                 allTanzaku = await response.json();
+                // イベント一覧（件数・アクティブ状態）も合わせて更新する。
+                // updateStats はアクティブイベントの判定に allEvents を使うため、先に読み込む。
+                await loadEvents();
                 filteredTanzaku = applyBaseFilter(allTanzaku);
                 applySearch();
                 updateStats();
@@ -592,16 +596,33 @@ const adminHtml = `<!DOCTYPE html>
             }
         }
         
+        function getActiveEvent() {
+            return allEvents.find(function(e) { return e.isActive; }) || null;
+        }
+
         function updateStats() {
-            const total = allTanzaku.length;
-            const valid = allTanzaku.filter(t => t.validationResult === 0 && !t.logicalDelete).length;
-            const invalid = allTanzaku.filter(t => t.validationResult === 1 && !t.logicalDelete).length;
-            const deleted = allTanzaku.filter(t => t.logicalDelete).length;
-            
+            // 統計はアクティブなイベントの短冊だけを集計する。
+            // アクティブなイベントが無い場合は、公開ウォール側の挙動に合わせて
+            // レガシー分（eventId が無い短冊）を集計する。
+            const activeEvent = getActiveEvent();
+            const activeEventId = activeEvent ? activeEvent.id : null;
+            const scoped = allTanzaku.filter(function(t) {
+                return (t.eventId ?? null) === activeEventId;
+            });
+
+            const total = scoped.length;
+            const valid = scoped.filter(t => t.validationResult === 0 && !t.logicalDelete).length;
+            const invalid = scoped.filter(t => t.validationResult === 1 && !t.logicalDelete).length;
+            const deleted = scoped.filter(t => t.logicalDelete).length;
+
             document.getElementById('totalCount').textContent = total;
             document.getElementById('validCount').textContent = valid;
             document.getElementById('invalidCount').textContent = invalid;
             document.getElementById('deletedCount').textContent = deleted;
+
+            document.getElementById('statsScope').textContent = activeEvent
+                ? '集計対象: ' + activeEvent.name + '（アクティブイベント）'
+                : '集計対象: レガシー分（アクティブイベントなし）';
         }
         
         function renderTable() {
@@ -1129,7 +1150,7 @@ const adminHtml = `<!DOCTYPE html>
         }
 
         function renderEvents() {
-            const activeEvent = allEvents.find(function(e) { return e.isActive; });
+            const activeEvent = getActiveEvent();
             document.getElementById('activeEventBadge').textContent =
                 'アクティブ: ' + (activeEvent ? activeEvent.name : 'なし（レガシーデータ表示中）');
 
@@ -1196,7 +1217,6 @@ const adminHtml = `<!DOCTYPE html>
                 const response = await fetch('/manage/events/' + id + '/activate', { method: 'POST' });
                 if (!response.ok) throw new Error('切り替えに失敗しました');
                 showMessage('イベントを切り替えました', 'success');
-                loadEvents();
                 loadData();
             } catch (error) {
                 showMessage('エラー: ' + error.message, 'error');
@@ -1208,7 +1228,6 @@ const adminHtml = `<!DOCTYPE html>
                 const response = await fetch('/manage/events/deactivate-all', { method: 'POST' });
                 if (!response.ok) throw new Error('無効化に失敗しました');
                 showMessage('イベントを無効にしました', 'success');
-                loadEvents();
                 loadData();
             } catch (error) {
                 showMessage('エラー: ' + error.message, 'error');
@@ -1216,7 +1235,7 @@ const adminHtml = `<!DOCTYPE html>
         }
 
         // ページ読み込み時にデータを取得
-        window.addEventListener('load', function() { loadData(); loadEvents(); });
+        window.addEventListener('load', function() { loadData(); });
     </script>
 </body>
 </html>`;
