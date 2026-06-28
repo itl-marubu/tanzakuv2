@@ -11,10 +11,66 @@ const VALIDATION_NG = 1;
 // 旧 llama-3.3-70b は重く応答を支配していたため差し替え。コストも現行よりわずかに低い。
 const MODERATION_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
 
+// AI のレスポンス（文字列/オブジェクト混在・前後に余計な文章が付くことがある）から
+// validationResult(0/1) を頑健に取り出す。取り出せなければ null。
+const extractValidationResult = (raw: unknown): number | null => {
+  const responseField =
+    typeof raw === "object" && raw !== null && "response" in raw
+      ? (raw as { response: unknown }).response
+      : raw;
+
+  // すでにオブジェクト（{ result: number }）で返る場合
+  if (
+    responseField &&
+    typeof responseField === "object" &&
+    typeof (responseField as { result?: unknown }).result === "number"
+  ) {
+    const v = (responseField as { result: number }).result;
+    return v === VALIDATION_OK || v === VALIDATION_NG ? v : null;
+  }
+
+  if (typeof responseField !== "string") {
+    return null;
+  }
+
+  // 1) 文字列全体が JSON
+  try {
+    const obj = JSON.parse(responseField) as { result?: unknown };
+    if (obj && typeof obj.result === "number") {
+      return obj.result === VALIDATION_OK || obj.result === VALIDATION_NG
+        ? obj.result
+        : null;
+    }
+  } catch {
+    // フォールバックに進む
+  }
+
+  // 2) 文中に埋め込まれた "result": 0/1 を拾う（前後に説明文があっても可）
+  const match = responseField.match(/result["']?\s*[:=]\s*([01])/i);
+  if (match) {
+    return Number(match[1]);
+  }
+
+  return null;
+};
+
 const validateTanzaku = async (ai: Ai, text: string): Promise<number> => {
-  // Llama 4 系は response_format ではなく guided_json で構造化出力を指定する。
+  // prompt 形式だと few-shot 例文の「続き」を生成してしまい構造化出力が崩れるため、
+  // チャット（messages）形式 + 厳格な system 指示で 1 件だけを判定させる。
   const raw = await ai.run(MODERATION_MODEL, {
-    prompt: `あなたは校閲のプロフェッショナルです。ユーザーは七夕の短冊プロジェクトにいくつかのメッセージを投稿しています。それらのメッセージを校閲して、明らかに不適切であれば1と、適切であれば0と返してください。\n適切かどうかの基準は、公序良俗に反したことを言っているかどうかです。\n例: {\n  user: "楽しい七夕です!",\n  result: 0\n},{\n  user: "爆発しそうなくらい楽しい",\n  result: 0\n},{\n  user: "A先生キショい",\n  result: 1\n},{\n  user: "蓮舫蓮舫蓮舫蓮舫",\n  result: 1\n},{\n  user: "大学の自治を守ろう",\n  result: 0\n},{\n  user: "美味しいカレーが食べたい",\n  result: 0\n},{\n  user: "中央大学を爆破する",\n  result: 1\n},\nメッセージ: ${text}`,
+    messages: [
+      {
+        role: "system",
+        content:
+          "あなたは七夕の短冊メッセージの校閲者です。与えられたメッセージ1件が、公序良俗に反して明らかに不適切なら 1、適切なら 0 と判定します。" +
+          ' 出力は必ず {"result":0} または {"result":1} という JSON オブジェクトだけにし、理由や説明など他のテキストは一切含めないでください。\n' +
+          '判定例:\n「楽しい七夕です!」→ {"result":0}\n「爆発しそうなくらい楽しい」→ {"result":0}\n' +
+          '「A先生キショい」→ {"result":1}\n「蓮舫蓮舫蓮舫蓮舫」→ {"result":1}\n' +
+          '「大学の自治を守ろう」→ {"result":0}\n「美味しいカレーが食べたい」→ {"result":0}\n' +
+          '「中央大学を爆破する」→ {"result":1}'
+      },
+      { role: "user", content: text }
+    ],
     guided_json: {
       type: "object",
       properties: {
@@ -27,39 +83,11 @@ const validateTanzaku = async (ai: Ai, text: string): Promise<number> => {
     }
   });
 
-  // Scout は { response: "<JSON文字列>" } を返す。モデルによっては response が
-  // オブジェクトのこともあるため、文字列・オブジェクトの両方を許容して解釈する。
-  const responseField =
-    typeof raw === "object" && raw !== null && "response" in raw
-      ? (raw as { response: unknown }).response
-      : raw;
-
-  let parsed: unknown = responseField;
-  if (typeof responseField === "string") {
-    try {
-      parsed = JSON.parse(responseField);
-    } catch (error) {
-      console.error("JSON Parse Error:", error, responseField);
-      throw new Error("Failed to parse AI response");
-    }
+  const value = extractValidationResult(raw);
+  if (value === null) {
+    console.error("Could not parse validation result from AI response:", raw);
+    throw new Error("Failed to parse AI response");
   }
-
-  if (
-    !parsed ||
-    typeof parsed !== "object" ||
-    !("result" in parsed) ||
-    typeof (parsed as { result: unknown }).result !== "number"
-  ) {
-    console.error("Invalid AI Response:", raw);
-    throw new Error("Invalid response from AI");
-  }
-
-  const value = (parsed as { result: number }).result;
-  if (value !== VALIDATION_OK && value !== VALIDATION_NG) {
-    console.error("Invalid Validation Result:", parsed);
-    throw new Error("Invalid validation result");
-  }
-
   return value;
 };
 
@@ -79,12 +107,22 @@ export class TanzakuService {
       throw new Error("メッセージは14文字以内で入力してください");
     }
 
-    let validationResult = 0; // デフォルトは適切
+    let validationResult = VALIDATION_OK; // デフォルトは適切
     if (ai) {
-      validationResult = await validateTanzaku(
-        ai,
-        `${data.content}${data.userName}`
-      );
+      try {
+        validationResult = await validateTanzaku(
+          ai,
+          `${data.content}${data.userName}`
+        );
+      } catch (error) {
+        // 検証が失敗しても投稿自体は通す（イベント運用を止めない）。
+        // 失敗時は表示側(0)に倒し、問題があれば管理画面で対応する。
+        console.error(
+          "Validation failed; saving tanzaku as visible (0):",
+          error
+        );
+        validationResult = VALIDATION_OK;
+      }
     }
 
     const activeEvent = await this.prisma.event.findFirst({
