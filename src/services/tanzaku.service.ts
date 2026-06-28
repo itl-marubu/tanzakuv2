@@ -1,54 +1,66 @@
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { PrismaClient } from "../generated/prisma";
 
-interface AIResponse {
-  response: {
-    result: number;
-  };
-}
+// validationResult の値の取り決め:
+//   0 = 適切（承認済み・ウォール表示）
+//   1 = 不適切（NG・非表示）
+const VALIDATION_OK = 0;
+const VALIDATION_NG = 1;
 
-const validateTanzaku = async (ai: Ai, text: string) => {
-  const result = (await ai.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+// 検証モデル: Llama 4 Scout（MoE・ネイティブ多言語=日本語対応・131k context）。
+// 旧 llama-3.3-70b は重く応答を支配していたため差し替え。コストも現行よりわずかに低い。
+const MODERATION_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
+
+const validateTanzaku = async (ai: Ai, text: string): Promise<number> => {
+  // Llama 4 系は response_format ではなく guided_json で構造化出力を指定する。
+  const raw = await ai.run(MODERATION_MODEL, {
     prompt: `あなたは校閲のプロフェッショナルです。ユーザーは七夕の短冊プロジェクトにいくつかのメッセージを投稿しています。それらのメッセージを校閲して、明らかに不適切であれば1と、適切であれば0と返してください。\n適切かどうかの基準は、公序良俗に反したことを言っているかどうかです。\n例: {\n  user: "楽しい七夕です!",\n  result: 0\n},{\n  user: "爆発しそうなくらい楽しい",\n  result: 0\n},{\n  user: "A先生キショい",\n  result: 1\n},{\n  user: "蓮舫蓮舫蓮舫蓮舫",\n  result: 1\n},{\n  user: "大学の自治を守ろう",\n  result: 0\n},{\n  user: "美味しいカレーが食べたい",\n  result: 0\n},{\n  user: "中央大学を爆破する",\n  result: 1\n},\nメッセージ: ${text}`,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        type: "object",
-        properties: {
-          result: {
-            type: "number",
-            enum: [0, 1]
-          }
+    guided_json: {
+      type: "object",
+      properties: {
+        result: {
+          type: "number",
+          enum: [0, 1]
         }
-      }
+      },
+      required: ["result"]
     }
-  })) as unknown as AIResponse;
+  });
+
+  // Scout は { response: "<JSON文字列>" } を返す。モデルによっては response が
+  // オブジェクトのこともあるため、文字列・オブジェクトの両方を許容して解釈する。
+  const responseField =
+    typeof raw === "object" && raw !== null && "response" in raw
+      ? (raw as { response: unknown }).response
+      : raw;
+
+  let parsed: unknown = responseField;
+  if (typeof responseField === "string") {
+    try {
+      parsed = JSON.parse(responseField);
+    } catch (error) {
+      console.error("JSON Parse Error:", error, responseField);
+      throw new Error("Failed to parse AI response");
+    }
+  }
 
   if (
-    !result ||
-    typeof result !== "object" ||
-    !("response" in result) ||
-    typeof result.response !== "object" ||
-    !("result" in result.response) ||
-    typeof result.response.result !== "number"
+    !parsed ||
+    typeof parsed !== "object" ||
+    !("result" in parsed) ||
+    typeof (parsed as { result: unknown }).result !== "number"
   ) {
-    console.error("Invalid AI Response:", result);
+    console.error("Invalid AI Response:", raw);
     throw new Error("Invalid response from AI");
   }
 
-  try {
-    const parsedResponse = result.response;
-
-    if (![0, 1].includes(parsedResponse.result)) {
-      console.error("Invalid Validation Result:", parsedResponse);
-      throw new Error("Invalid validation result");
-    }
-
-    return parsedResponse.result;
-  } catch (error) {
-    console.error("JSON Parse Error:", error);
-    throw new Error("Failed to parse AI response");
+  const value = (parsed as { result: number }).result;
+  if (value !== VALIDATION_OK && value !== VALIDATION_NG) {
+    console.error("Invalid Validation Result:", parsed);
+    throw new Error("Invalid validation result");
   }
+
+  return value;
 };
 
 export class TanzakuService {
