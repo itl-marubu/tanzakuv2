@@ -45,12 +45,19 @@ const extractValidationResult = (raw: unknown): number | null => {
     // フォールバックに進む
   }
 
-  // 2) 文中に埋め込まれた "result": 0/1 を拾う（前後に説明文があっても可）
-  const match = responseField.match(/result["']?\s*[:=]\s*([01])/i);
-  if (match) {
-    return Number(match[1]);
+  // 2) 文中に埋め込まれた "result": 0/1 を拾う（前後に説明文があっても可）。
+  //    モデルが暴走して複数の result を羅列することがあるため、全件を集めて
+  //    値が一意のときだけ採用する。0 と 1 が混在＝曖昧なら null を返して
+  //    安全側（呼び出し元で非表示=1）に倒す。最初の一致を盲信しない。
+  const matches = [
+    ...responseField.matchAll(/result["']?\s*[:=]\s*([01])/gi)
+  ];
+  const distinct = new Set(matches.map((m) => Number(m[1])));
+  if (distinct.size === 1) {
+    return [...distinct][0];
   }
 
+  // 一致なし、または 0/1 が混在して判別不能
   return null;
 };
 
