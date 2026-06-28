@@ -115,13 +115,14 @@ export class TanzakuService {
           `${data.content}${data.userName}`
         );
       } catch (error) {
-        // 検証が失敗しても投稿自体は通す（イベント運用を止めない）。
-        // 失敗時は表示側(0)に倒し、問題があれば管理画面で対応する。
+        // 検証が失敗しても投稿自体は通す（500 で止めない）。ただし安全側に倒し、
+        // 未検証のコンテンツがウォールに出ないよう非表示(1)で保存する。
+        // 正当な投稿が巻き込まれた場合は管理画面で表示(0)に直せる。
         console.error(
-          "Validation failed; saving tanzaku as visible (0):",
+          "Validation failed; saving tanzaku as hidden (1):",
           error
         );
-        validationResult = VALIDATION_OK;
+        validationResult = VALIDATION_NG;
       }
     }
 
