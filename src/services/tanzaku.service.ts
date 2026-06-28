@@ -49,9 +49,7 @@ const extractValidationResult = (raw: unknown): number | null => {
   //    モデルが暴走して複数の result を羅列することがあるため、全件を集めて
   //    値が一意のときだけ採用する。0 と 1 が混在＝曖昧なら null を返して
   //    安全側（呼び出し元で非表示=1）に倒す。最初の一致を盲信しない。
-  const matches = [
-    ...responseField.matchAll(/result["']?\s*[:=]\s*([01])/gi)
-  ];
+  const matches = [...responseField.matchAll(/result["']?\s*[:=]\s*([01])/gi)];
   const distinct = new Set(matches.map((m) => Number(m[1])));
   if (distinct.size === 1) {
     return [...distinct][0];
