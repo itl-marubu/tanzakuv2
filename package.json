@@ -10,6 +10,8 @@
     "lint": "biome lint --write .",
     "lint:check": "biome lint .",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "check": "biome check .",
     "fix": "biome check --write .",
     "gen": "run-p gen:*",
@@ -23,21 +25,26 @@
   },
   "dependencies": {
     "@hono/oauth-providers": "^0.7.1",
+    "@hono/zod-validator": "^0.8.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/adapter-d1": "^6.8.2",
     "@prisma/client": "^6.8.2",
     "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.27",
     "jose": "^6.0.11",
     "prisma": "^6.8.2",
-    "prisma-markdown": "^2.0.0"
+    "prisma-markdown": "^2.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@cloudflare/vitest-pool-workers": "^0.18.0",
     "@cloudflare/workers-types": "^4.20260628.1",
     "@types/node": "^24.0.7",
     "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
+    "vitest": "^4.1.10",
     "wrangler": "^4.105.0"
   },
   "pnpm": {
