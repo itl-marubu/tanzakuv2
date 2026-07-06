@@ -1,112 +1,58 @@
-import { createId } from "@paralleldrive/cuid2";
-import { PrismaD1 } from "@prisma/adapter-d1";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../generated/prisma/client";
+import { createDb } from "../db/client";
+import { dateForDb, parseDbDate } from "../lib/dates";
+import { newCuid } from "../lib/id";
 import { createRefreshToken, createToken } from "../lib/jwt";
+import {
+  AdminUserRepository,
+  GoogleOauthRepository,
+  RefreshTokenRepository
+} from "../repositories/auth.repository";
+
+// OAuth プロバイダから渡されるユーザー情報のうち使用するフィールド
+export type OauthUser = {
+  id?: string;
+  email?: string;
+};
 
 export class AuthService {
-  private prisma: PrismaClient;
+  private readonly users: AdminUserRepository;
+  private readonly googleOauths: GoogleOauthRepository;
+  private readonly refreshTokens: RefreshTokenRepository;
 
   constructor(db: D1Database) {
-    const adapter = new PrismaD1(db);
-    this.prisma = new PrismaClient({ adapter });
+    const client = createDb(db);
+    this.users = new AdminUserRepository(client);
+    this.googleOauths = new GoogleOauthRepository(client);
+    this.refreshTokens = new RefreshTokenRepository(client);
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-  async handleGoogleAuth(user: any, jwtSecret: string) {
-    let sysuser = null;
+  async handleGoogleAuth(user: OauthUser | undefined, jwtSecret: string) {
+    // GoogleOauth.id には Google の sub が入る(既存データ互換)
+    const existing = await this.googleOauths.findById(user?.id ?? "");
 
-    if (
-      (await this.prisma.googleOauth.findUnique({
-        where: { id: user?.id }
-      })) !== null
-    ) {
-      const g = await this.prisma.googleOauth
-        .findUnique({
-          where: { id: user?.id }
-        })
-        .then(
-          // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-          (r: any) => {
-            return r?.userId;
-          },
-          // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-          (e: any) => {
-            console.error(e);
-            return null;
-          }
-        );
-
-      sysuser = await this.prisma.adminUser.findUniqueOrThrow({
-        where: { id: g || "" }
-      });
+    let sysuserId: string;
+    if (existing) {
+      const sysuser = await this.users.findById(existing.userId);
+      if (!sysuser) {
+        throw new Error("AdminUser not found for GoogleOauth");
+      }
+      sysuserId = sysuser.id;
     } else {
-      sysuser = await this.prisma.adminUser.create({
-        data: {
-          email: user?.email || ""
-        }
+      const sysuser = await this.users.create({ email: user?.email || "" });
+      await this.googleOauths.create({
+        id: user?.id ?? "",
+        email: user?.email || "",
+        userId: sysuser.id
       });
-
-      await this.prisma.googleOauth.create({
-        data: {
-          id: user?.id,
-          email: user?.email || "",
-          userId: sysuser.id
-        }
-      });
+      sysuserId = sysuser.id;
     }
 
-    return this.createTokens(sysuser?.id, jwtSecret);
-  }
-
-  // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-  async handleGithubAuth(user: any, jwtSecret: string) {
-    let sysuser = null;
-    if (
-      (await this.prisma.gitHubOauth.findUnique({
-        where: { id: user?.id }
-      })) !== null
-    ) {
-      const g = await this.prisma.gitHubOauth
-        .findUnique({
-          where: { id: user?.id }
-        })
-        .then(
-          // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-          (r: any) => {
-            return r?.userId;
-          },
-          // biome-ignore lint/suspicious/noExplicitAny: API Responseなので無視
-          (e: any) => {
-            console.error(e);
-            return null;
-          }
-        );
-      sysuser = await this.prisma.adminUser.findUniqueOrThrow({
-        where: { id: g || "" }
-      });
-    } else {
-      sysuser = await this.prisma.adminUser.create({
-        data: {
-          email: user?.email || ""
-        }
-      });
-      await this.prisma.gitHubOauth.create({
-        data: {
-          id: user?.id || 0,
-          email: user?.email || "",
-          userId: sysuser.id
-        }
-      });
-    }
-
-    return this.createTokens(sysuser?.id, jwtSecret);
+    return this.createTokens(sysuserId, jwtSecret);
   }
 
   async signup(email: string, password: string, jwtSecret: string) {
-    const user = await this.prisma.adminUser.findUnique({
-      where: { email }
-    });
+    const user = await this.users.findByEmail(email);
 
     if (user) {
       throw new Error("User already exists");
@@ -114,11 +60,9 @@ export class AuthService {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const newUser = await this.prisma.adminUser.create({
-      data: {
-        email,
-        password: hashedPassword
-      }
+    const newUser = await this.users.create({
+      email,
+      password: hashedPassword
     });
 
     if (!newUser) {
@@ -129,9 +73,7 @@ export class AuthService {
   }
 
   async login(email: string, password: string, jwtSecret: string) {
-    const user = await this.prisma.adminUser.findUnique({
-      where: { email }
-    });
+    const user = await this.users.findByEmail(email);
 
     if (!user) {
       throw new Error("User not found");
@@ -146,19 +88,15 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string, jwtSecret: string) {
-    const token = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true }
-    });
+    const token = await this.refreshTokens.findByToken(refreshToken);
 
-    if (!token || token.expiresAt < new Date()) {
+    // expiresAt は TEXT 格納のため必ず Date 化してから比較する(字句比較は不可)
+    if (!token || parseDbDate(token.expiresAt) < new Date()) {
       throw new Error("Invalid or expired refresh token");
     }
 
     // 古いリフレッシュトークンを削除
-    await this.prisma.refreshToken.delete({
-      where: { id: token.id }
-    });
+    await this.refreshTokens.deleteById(token.id);
 
     return this.createTokens(token.userId, jwtSecret);
   }
@@ -168,7 +106,7 @@ export class AuthService {
       const accessToken = await createToken(
         {
           uid: userId || "",
-          jti: createId()
+          jti: newCuid()
         },
         jwtSecret
       );
@@ -177,12 +115,11 @@ export class AuthService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // 30日間有効
 
-      await this.prisma.refreshToken.create({
-        data: {
-          token: refreshToken,
-          userId: userId,
-          expiresAt
-        }
+      await this.refreshTokens.create({
+        id: newCuid(),
+        token: refreshToken,
+        userId: userId,
+        expiresAt: dateForDb(expiresAt)
       });
 
       return {
