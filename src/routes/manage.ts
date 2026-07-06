@@ -1244,6 +1244,13 @@ manage.get("/", (c) => {
   return c.html(adminHtml);
 });
 
+// フロントエンド管理画面(/admin)のログインフォームが Basic 認証資格情報の
+// 疎通確認に使う軽量エンドポイント。認証は上のミドルウェアが担うため、
+// ここに到達した時点で資格情報は有効。
+manage.get("/session", (c) => {
+  return c.json({ ok: true });
+});
+
 manage.get("/tanzakus", async (c) => {
   const service = new TanzakuService(c.env.DB);
   try {
