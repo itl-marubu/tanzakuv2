@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
   title: Tanzaku API
-  version: 1.0.0
-  description: tanzakuアプリケーションのAPI仕様
+  version: 2.0.0
+  description: tanzakuアプリケーションのAPI仕様(この定義が正本。フロントエンドの型生成はここから行う)
   contact:
     name: Fuminori Ogawa
     email: fuminori@mizphses.com
@@ -12,8 +12,8 @@ tags:
     description: tanzakuの操作に関するエンドポイント
   - name: accounts
     description: アカウント管理に関するエンドポイント
-  - name: admin
-    description: 管理者用エンドポイント
+  - name: manage
+    description: 管理者用エンドポイント(Basic認証)
 
 servers:
   - url: https://tanzakuv2.fuminori.workers.dev
@@ -27,10 +27,22 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: 管理画面用(ADMIN_ID / ADMIN_PWD)
 
   schemas:
     Tanzaku:
       type: object
+      required:
+        - id
+        - content
+        - userName
+        - visiblePattern
+        - validationResult
+        - logicalDelete
+        - createdAt
       properties:
         id:
           type: string
@@ -38,9 +50,120 @@ components:
           type: string
         userName:
           type: string
+        visiblePattern:
+          type: boolean
+          description: ウォール表示ローテーション用フラグ
         validationResult:
           type: number
           enum: [0, 1]
+          description: 0=適切(表示)、1=不適切(非表示)
+        logicalDelete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        eventId:
+          type: string
+          nullable: true
+          description: 紐付くイベント。null はレガシー(イベント制導入前)データ
+
+    TanzakuWithEvent:
+      allOf:
+        - $ref: "#/components/schemas/Tanzaku"
+        - type: object
+          properties:
+            event:
+              type: object
+              nullable: true
+              required:
+                - id
+                - name
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+
+    Event:
+      type: object
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    EventWithCount:
+      allOf:
+        - $ref: "#/components/schemas/Event"
+        - type: object
+          required:
+            - _count
+          properties:
+            _count:
+              type: object
+              required:
+                - tanzakus
+              properties:
+                tanzakus:
+                  type: number
+
+    TanzakuEditOperation:
+      oneOf:
+        - type: object
+          required:
+            - id
+            - operation
+          properties:
+            id:
+              type: string
+            operation:
+              type: string
+              enum: [delete]
+        - type: object
+          required:
+            - id
+            - operation
+          properties:
+            id:
+              type: string
+            operation:
+              type: string
+              enum: [hardDelete]
+        - type: object
+          required:
+            - id
+            - operation
+          properties:
+            id:
+              type: string
+            operation:
+              type: string
+              enum: [update]
+            content:
+              type: string
+              maxLength: 14
+            userName:
+              type: string
+            validationResult:
+              type: number
+              enum: [0, 1]
+            eventId:
+              type: string
+              nullable: true
+              description: 未指定=変更しない、null=レガシーへ移動
 
     AuthTokens:
       type: object
@@ -48,6 +171,25 @@ components:
         accessToken:
           type: string
         refreshToken:
+          type: string
+
+    Success:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+
+    SuccessWithId:
+      type: object
+      required:
+        - success
+        - id
+      properties:
+        success:
+          type: boolean
+        id:
           type: string
 
     Error:
@@ -63,7 +205,7 @@ paths:
         - tanzaku
       operationId: getTanzakuList
       summary: tanzaku一覧を取得
-      description: 全てのtanzakuの一覧を取得します
+      description: 全てのtanzakuの一覧を取得します(createdAt降順、event付き)
       responses:
         "200":
           description: tanzaku一覧
@@ -72,14 +214,14 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Tanzaku"
+                  $ref: "#/components/schemas/TanzakuWithEvent"
 
     post:
       tags:
         - tanzaku
       operationId: createTanzaku
       summary: 新しいtanzakuを作成
-      description: 新しいtanzakuを作成します
+      description: 新しいtanzakuを作成します(AIによる適切性検証付き)
       requestBody:
         required: true
         content:
@@ -98,13 +240,15 @@ paths:
                   type: string
       responses:
         "200":
-          description: 作成されたtanzaku
+          description: 作成されたtanzaku(validationResult=1 は AI により非表示判定)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tanzaku"
+        "400":
+          description: バリデーションエラー
 
-  /tanzaku/{id}:
+  /tanzaku/check/{id}:
     get:
       tags:
         - tanzaku
@@ -136,8 +280,20 @@ paths:
       tags:
         - tanzaku
       operationId: getRecentTanzaku
-      summary: 最新20件のtanzakuを取得
-      description: 最新の20件のtanzakuを取得します
+      summary: クライアント表示用のtanzakuを取得
+      description: |
+        アクティブイベント(なければレガシー)スコープの表示可能なtanzakuを
+        limit件返します。返した行は非表示にマークされ、表示可能な行が尽きると
+        リセットされるローテーション方式です。
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 10
       responses:
         "200":
           description: tanzaku一覧
@@ -252,15 +408,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /admin/tanzakus:
+  /manage/session:
     get:
       tags:
-        - admin
-      operationId: adminGetAllTanzaku
-      summary: 管理者用：全tanzakuの取得
-      description: 管理者権限で全てのtanzakuを取得します
+        - manage
+      operationId: manageSession
+      summary: 管理者資格情報の疎通確認
+      description: Basic認証を通過できるかの確認用。フロントの管理画面ログインが使用します
       security:
-        - BearerAuth: []
+        - BasicAuth: []
+      responses:
+        "200":
+          description: 認証成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          description: 認証失敗
+
+  /manage/tanzakus:
+    get:
+      tags:
+        - manage
+      operationId: manageGetAllTanzaku
+      summary: 管理者用:全tanzakuの取得
+      description: 全てのtanzakuを取得します(createdAt降順、event付き)
+      security:
+        - BasicAuth: []
       responses:
         "200":
           description: 全tanzaku一覧
@@ -269,16 +449,22 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Tanzaku"
+                  $ref: "#/components/schemas/TanzakuWithEvent"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
     post:
       tags:
-        - admin
-      operationId: adminEditTanzaku
-      summary: 管理者用：tanzakuの編集
-      description: 管理者権限でtanzakuを編集または削除します
+        - manage
+      operationId: manageEditTanzaku
+      summary: 管理者用:tanzakuの一括編集
+      description: 論理削除(delete)・完全削除(hardDelete)・更新(update)を一括適用します
       security:
-        - BearerAuth: []
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -286,43 +472,170 @@ paths:
             schema:
               type: array
               items:
-                oneOf:
-                  - type: object
-                    required:
-                      - id
-                      - operation
-                    properties:
-                      id:
-                        type: string
-                      operation:
-                        type: string
-                        enum: [delete]
-                  - type: object
-                    required:
-                      - id
-                      - operation
-                      - content
-                      - userName
-                    properties:
-                      id:
-                        type: string
-                      operation:
-                        type: string
-                        enum: [update]
-                      content:
-                        type: string
-                      userName:
-                        type: string
+                $ref: "#/components/schemas/TanzakuEditOperation"
       responses:
         "200":
           description: 編集成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
+                $ref: "#/components/schemas/Success"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /manage/tanzakus/create:
+    post:
+      tags:
+        - manage
+      operationId: manageCreateTanzaku
+      summary: 管理者用:tanzakuの作成
+      description: AI検証をスキップしてtanzakuを作成します
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - userName
+              properties:
+                content:
+                  type: string
+                  maxLength: 14
+                userName:
+                  type: string
+                validationResult:
+                  type: number
+                  enum: [0, 1]
+                  description: 未指定は0(適切)
+                eventId:
+                  type: string
+                  nullable: true
+                  description: 未指定=アクティブイベント、null=レガシー
+      responses:
+        "200":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessWithId"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /manage/events:
+    get:
+      tags:
+        - manage
+      operationId: manageGetEvents
+      summary: 管理者用:イベント一覧
+      description: 全イベントを短冊数付きで取得します(createdAt降順)
+      security:
+        - BasicAuth: []
+      responses:
+        "200":
+          description: イベント一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventWithCount"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    post:
+      tags:
+        - manage
+      operationId: manageCreateEvent
+      summary: 管理者用:イベント作成
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessWithId"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /manage/events/deactivate-all:
+    post:
+      tags:
+        - manage
+      operationId: manageDeactivateAllEvents
+      summary: 管理者用:全イベントを無効化
+      security:
+        - BasicAuth: []
+      responses:
+        "200":
+          description: 無効化成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /manage/events/{id}/activate:
+    post:
+      tags:
+        - manage
+      operationId: manageActivateEvent
+      summary: 管理者用:イベントを有効化(排他的)
+      description: 指定イベントのみを有効化し、他は全て無効化します
+      security:
+        - BasicAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 有効化成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
         "500":
           description: エラー
           content:
