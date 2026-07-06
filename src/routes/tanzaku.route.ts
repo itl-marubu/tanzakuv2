@@ -1,5 +1,6 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
+import { createTanzakuSchema } from "../schemas/tanzaku.schema";
 import { TanzakuService } from "../services/tanzaku.service";
 
 const tanzaku = new Hono<{ Bindings: CloudflareBindings }>();
@@ -11,20 +12,11 @@ tanzaku.get("/", async (c) => {
   return c.json(result);
 });
 
-tanzaku.post("/", async (c) => {
-  const { content, userName } = await c.req.json<{
-    content: string;
-    userName: string;
-  }>();
+tanzaku.post("/", zValidator("json", createTanzakuSchema), async (c) => {
+  const { content, userName } = c.req.valid("json");
 
   const service = new TanzakuService(c.env.DB);
-  const result = await service.createTanzaku(
-    {
-      content,
-      userName
-    },
-    c.env.AI
-  );
+  const result = await service.createTanzaku({ content, userName }, c.env.AI);
 
   return c.json(result);
 });
@@ -43,6 +35,7 @@ tanzaku.get("/check/:id", async (c) => {
 
 tanzaku.get("/client", async (c) => {
   const service = new TanzakuService(c.env.DB);
+  // 旧実装と同一の解釈: 正の整数のみ採用、それ以外は 10(サービス側で 1〜30 に clamp)
   const limitQuery = c.req.query("limit");
   const parsedLimit = Number.parseInt(limitQuery ?? "", 10);
   const limit =

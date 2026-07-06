@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 // import admin from "./routes/admin";
 import auth from "./routes/auth";
 import manage from "./routes/manage";
-import tanzaku from "./routes/tanzaku";
+import tanzaku from "./routes/tanzaku.route";
 
 const app = new Hono<{ Bindings: CloudflareBindings }>();
 app.get("/", (c) => {
