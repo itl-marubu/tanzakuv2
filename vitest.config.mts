@@ -27,7 +27,17 @@ export default defineConfig(async () => {
       })
     ],
     test: {
-      setupFiles: ["./test/setup.ts"]
+      setupFiles: ["./test/setup.ts"],
+      deps: {
+        optimizer: {
+          ssr: {
+            enabled: true,
+            // CJS パッケージは workerd 上でそのまま require できないため
+            // Vite に事前バンドルさせる
+            include: ["@paralleldrive/cuid2", "bcryptjs"]
+          }
+        }
+      }
     }
   };
 });
