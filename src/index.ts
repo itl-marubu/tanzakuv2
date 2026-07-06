@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 // import admin from "./routes/admin";
-import auth from "./routes/auth";
+import auth from "./routes/auth.route";
 import manage from "./routes/manage";
 import tanzaku from "./routes/tanzaku.route";
 

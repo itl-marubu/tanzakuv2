@@ -1,5 +1,7 @@
 import { googleAuth } from "@hono/oauth-providers/google";
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { credentialsSchema, refreshSchema } from "../schemas/auth.schema";
 import { AuthService } from "../services/auth.service";
 
 const auth = new Hono<{ Bindings: CloudflareBindings }>();
@@ -27,8 +29,8 @@ auth.get(
   }
 );
 
-auth.post("/signup", async (c) => {
-  const { email, password } = await c.req.json();
+auth.post("/signup", zValidator("json", credentialsSchema), async (c) => {
+  const { email, password } = c.req.valid("json");
   const authService = new AuthService(c.env.DB);
 
   try {
@@ -40,8 +42,8 @@ auth.post("/signup", async (c) => {
   }
 });
 
-auth.post("/login", async (c) => {
-  const { email, password } = await c.req.json();
+auth.post("/login", zValidator("json", credentialsSchema), async (c) => {
+  const { email, password } = c.req.valid("json");
   const authService = new AuthService(c.env.DB);
 
   try {
@@ -53,8 +55,8 @@ auth.post("/login", async (c) => {
   }
 });
 
-auth.post("/refresh", async (c) => {
-  const { refreshToken } = await c.req.json();
+auth.post("/refresh", zValidator("json", refreshSchema), async (c) => {
+  const { refreshToken } = c.req.valid("json");
   const authService = new AuthService(c.env.DB);
 
   try {
