@@ -2,8 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import app from "../src/index";
 
-// vitest.config.mts では ADMIN_ID / ADMIN_PWD 未設定のため
-// middleware/basicAuth.ts のデフォルト値(admin/password)が使われる
+// vitest.config.mts の miniflare bindings で ADMIN_ID=admin / ADMIN_PWD=password を設定している
 const authHeader = `Basic ${btoa("admin:password")}`;
 
 describe("GET /config", () => {

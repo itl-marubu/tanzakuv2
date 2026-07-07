@@ -71,6 +71,16 @@ describe("activateEvent / deactivateAll", () => {
     expect(all.filter((e) => e.isActive)).toHaveLength(1);
   });
 
+  it("戻り値は常に有効化後のEvent(null にならない)", async () => {
+    const s = service();
+    const ev = await s.createEvent({ name: "A" });
+
+    const activated = await s.activateEvent(ev.id);
+    expect(activated).not.toBeNull();
+    expect(activated.id).toBe(ev.id);
+    expect(activated.isActive).toBe(true);
+  });
+
   it("存在しない ID は throw する", async () => {
     await expect(service().activateEvent("missing")).rejects.toThrow(
       "Event not found: missing"

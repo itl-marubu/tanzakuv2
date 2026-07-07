@@ -1,0 +1,6 @@
+# ローカル開発用の環境変数テンプレート。コピーして .dev.vars を作成する:
+#   cp .dev.vars.example .dev.vars
+# ADMIN_ID / ADMIN_PWD は必須(未設定だと /manage 系が 500 を返す fail-closed 仕様)
+ADMIN_ID=admin
+ADMIN_PWD=password
+FRONTEND_BASEURL=http://localhost:5173

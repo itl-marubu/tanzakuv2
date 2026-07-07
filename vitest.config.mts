@@ -21,23 +21,14 @@ export default defineConfig(async () => {
           d1Databases: { DB: "test-db" },
           bindings: {
             TEST_MIGRATIONS: migrations,
-            JWT_SECRET: "test-jwt-secret"
+            ADMIN_ID: "admin",
+            ADMIN_PWD: "password"
           }
         }
       })
     ],
     test: {
-      setupFiles: ["./test/setup.ts"],
-      deps: {
-        optimizer: {
-          ssr: {
-            enabled: true,
-            // CJS パッケージは workerd 上でそのまま require できないため
-            // Vite に事前バンドルさせる
-            include: ["@paralleldrive/cuid2", "bcryptjs"]
-          }
-        }
-      }
+      setupFiles: ["./test/setup.ts"]
     }
   };
 });

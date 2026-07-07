@@ -10,8 +10,6 @@ info:
 tags:
   - name: tanzaku
     description: tanzakuの操作に関するエンドポイント
-  - name: accounts
-    description: アカウント管理に関するエンドポイント
   - name: config
     description: グローバル設定に関するエンドポイント
   - name: manage
@@ -25,10 +23,6 @@ servers:
 
 components:
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
     BasicAuth:
       type: http
       scheme: basic
@@ -176,14 +170,6 @@ components:
               nullable: true
               description: 未指定=変更しない、null=レガシーへ移動
 
-    AuthTokens:
-      type: object
-      properties:
-        accessToken:
-          type: string
-        refreshToken:
-          type: string
-
     Success:
       type: object
       required:
@@ -329,110 +315,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Config"
-
-  /auth/signup:
-    post:
-      tags:
-        - accounts
-      operationId: signup
-      summary: 新規ユーザー登録
-      description: 新しいユーザーを登録します
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-      responses:
-        "200":
-          description: 認証トークン
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthTokens"
-        "500":
-          description: エラー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /auth/login:
-    post:
-      tags:
-        - accounts
-      operationId: login
-      summary: ログイン
-      description: 既存ユーザーとしてログインします
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-      responses:
-        "200":
-          description: 認証トークン
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthTokens"
-        "500":
-          description: エラー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /auth/refresh:
-    post:
-      tags:
-        - accounts
-      operationId: refreshToken
-      summary: トークンのリフレッシュ
-      description: アクセストークンをリフレッシュします
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - refreshToken
-              properties:
-                refreshToken:
-                  type: string
-      responses:
-        "200":
-          description: 新しい認証トークン
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthTokens"
-        "401":
-          description: 無効なリフレッシュトークン
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
   /manage/session:
     get:

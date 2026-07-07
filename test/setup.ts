@@ -11,11 +11,7 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM Tanzaku"),
-    env.DB.prepare("DELETE FROM RefreshToken"),
-    env.DB.prepare("DELETE FROM GoogleOauth"),
-    env.DB.prepare("DELETE FROM GitHubOauth"),
     env.DB.prepare("DELETE FROM Event"),
-    env.DB.prepare("DELETE FROM AdminUser"),
     env.DB.prepare("DELETE FROM AppConfig")
   ]);
 });

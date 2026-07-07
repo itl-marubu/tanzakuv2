@@ -17,19 +17,17 @@ src/
 ├── db/
 │   ├── schema.ts             # Drizzle スキーマ(migrations/*.sql の写像。DDL は生成しない)
 │   └── client.ts             # createDb(d1)
-├── middleware/basicAuth.ts   # 管理 API 用 Basic 認証(ADMIN_ID / ADMIN_PWD)
+├── middleware/basicAuth.ts   # 管理 API 用 Basic 認証(ADMIN_ID / ADMIN_PWD、未設定時は500)
 ├── routes/                   # HTTP 層(zod バリデーション・ステータス変換)
 │   ├── tanzaku.route.ts      # 公開 API
-│   ├── auth.route.ts         # OAuth / メール認証
 │   └── manage.route.ts       # 管理 JSON API(UI はフロントの /admin)
 ├── schemas/                  # zod スキーマ
 ├── services/                 # ビジネスロジック
 │   ├── tanzaku.service.ts    # 投稿・表示ローテーション・一括編集
 │   ├── moderation.service.ts # Workers AI による適切性検証(注入可能)
-│   ├── event.service.ts      # イベント管理(排他的アクティブ化)
-│   └── auth.service.ts       # トークン発行・Google OAuth
+│   └── event.service.ts      # イベント管理(排他的アクティブ化)
 ├── repositories/             # DB アクセス層
-└── lib/                      # jwt / 日時変換 / ID 生成
+└── lib/                      # 日時変換 / ID 生成
 ```
 
 ### DB の日時・ID の取り決め
@@ -37,8 +35,7 @@ src/
 - DATETIME 列の実体は TEXT。既存データは `YYYY-MM-DD HH:MM:SS`(UTC)と ISO 8601 が
   混在しうるため、読み取りは `lib/dates.ts` の `parseDbDate()`(両対応)、
   書き込みは ISO 8601(Z)に統一している
-- ID: Tanzaku / Event / AdminUser = UUID、RefreshToken = cuid2、
-  GoogleOauth.id = Google の sub(生成しない)
+- ID: Tanzaku / Event = UUID
 
 ## 開発
 
@@ -75,7 +72,5 @@ pnpm deploy        # 手動デプロイ(wrangler deploy --minify)
 
 | 名前 | 用途 |
 |---|---|
-| `JWT_SECRET` | JWT 署名キー |
-| `GOOGLE_ID` / `GOOGLE_SECRET` | Google OAuth |
-| `FRONTEND_BASEURL` | フロントエンド URL(OAuth リダイレクト・/manage リダイレクト先) |
-| `ADMIN_ID` / `ADMIN_PWD` | 管理 API の Basic 認証 |
+| `FRONTEND_BASEURL` | フロントエンド URL(/manage リダイレクト先) |
+| `ADMIN_ID` / `ADMIN_PWD` | 管理 API の Basic 認証(未設定の場合、管理 API は 500 を返す) |
