@@ -48,8 +48,12 @@ export class EventService {
     }
     await this.events.activateExclusively(id);
     const activated = await this.events.findById(id);
-    // 直前に存在確認済みのため activated は必ず存在する
-    return activated ? serialize(activated) : null;
+    if (!activated) {
+      // 直前に存在確認済みのため通常到達しないが、万一消えていた場合は
+      // 呼び出し側に null 分岐を持たせず異常系として例外にする
+      throw new Error(`Event not found after activation: ${id}`);
+    }
+    return serialize(activated);
   }
 
   async deactivateAll() {
