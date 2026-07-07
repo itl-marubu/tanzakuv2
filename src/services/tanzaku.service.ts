@@ -1,7 +1,15 @@
 import { createDb } from "../db/client";
 import type { TanzakuRow } from "../db/schema";
-import { nowForDb, toApiDate } from "../lib/dates";
+import { dateForDb, nowForDb, toApiDate } from "../lib/dates";
 import { newUuid } from "../lib/id";
+import {
+  FRESH_RESERVED_SLOTS,
+  FRESH_WINDOW_MS,
+  hashSeed,
+  rotationOffset,
+  splitWindow,
+  windowIndexFromClock
+} from "../lib/rotation";
 import { EventRepository } from "../repositories/event.repository";
 import {
   TanzakuRepository,
@@ -89,28 +97,74 @@ export class TanzakuService {
   }
 
   /**
-   * ウォール表示用のローテーション取得。
-   * アクティブイベント(なければレガシー)スコープで、
-   * 表示可能な短冊が尽きていたら visiblePattern をリセットしてから
-   * createdAt 降順で limit 件返し、返した行は非表示にマークする。
+   * ウォール表示用のステートレス・ローテーション取得(DB書き込みゼロ)。
+   *
+   * - 新着セグメント: 直近60秒(FRESH_WINDOW_MS)以内に作成された表示可能な短冊を
+   *   新しい順に最大 `limit - FRESH_RESERVED_SLOTS` 件。window/seed に非依存
+   *   (サーバー時刻 `now` 基準)なので、リロード連打でも新着は必ず先頭に出る
+   * - 巡回セグメント: 残り枠を、新着以外の表示可能な短冊の安定順序リスト
+   *   (createdAt ASC, id ASC)上の窓で充填する。窓の位置は
+   *   `offset = (window × 残り枠数 + fnv1a(seed)) mod poolCount` で決定的に求め、
+   *   末尾に達したら先頭へラップ(2回に分けて取得)する
+   * - window/seed が指定されなければサーバー壁時計から window を導出する
+   *   (カーソル未対応の旧フロント互換のデフォルト)
+   *
+   * `now` はテスト用の注入ポイント(省略時は呼び出し時刻)。
    */
-  async getClientTanzaku(limit = 10) {
-    const safeLimit = Math.min(30, Math.max(1, Math.floor(limit)));
+  async getClientTanzaku(
+    params: {
+      limit?: number;
+      window?: number;
+      seed?: string;
+      now?: Date;
+    } = {}
+  ) {
+    const safeLimit = Math.min(30, Math.max(1, Math.floor(params.limit ?? 10)));
+    const now = params.now ?? new Date();
+
     const activeEvent = await this.events.findActive();
     const scopeEventId = activeEvent?.id ?? null;
 
-    if (!(await this.tanzakus.existsDisplayable(scopeEventId))) {
-      await this.tanzakus.resetVisibility(scopeEventId);
+    const freshMax = Math.max(0, safeLimit - FRESH_RESERVED_SLOTS);
+    const sinceDb =
+      freshMax > 0
+        ? dateForDb(new Date(now.getTime() - FRESH_WINDOW_MS))
+        : null;
+    const fresh =
+      freshMax > 0 && sinceDb !== null
+        ? await this.tanzakus.findFresh(scopeEventId, sinceDb, freshMax)
+        : [];
+
+    const remaining = safeLimit - fresh.length;
+    if (remaining <= 0) {
+      return fresh.map(serialize);
     }
 
-    const result = await this.tanzakus.findDisplayable(safeLimit, scopeEventId);
-    if (result.length === 0) {
-      return [];
+    const excludeIds = fresh.map((r) => r.id);
+    const poolCount = await this.tanzakus.countRotationPool(
+      scopeEventId,
+      excludeIds
+    );
+    if (poolCount === 0) {
+      return fresh.map(serialize);
     }
 
-    await this.tanzakus.markHidden(result.map((r) => r.id));
+    const windowIndex = params.window ?? windowIndexFromClock(now);
+    const seedHash = hashSeed(params.seed ?? "");
+    const offset = rotationOffset(windowIndex, seedHash, remaining, poolCount);
 
-    return result.map(serialize);
+    const poolRows: TanzakuRow[] = [];
+    for (const part of splitWindow(offset, remaining, poolCount)) {
+      const rows = await this.tanzakus.findRotationSlice(
+        scopeEventId,
+        excludeIds,
+        part.offset,
+        part.limit
+      );
+      poolRows.push(...rows);
+    }
+
+    return [...fresh, ...poolRows].map(serialize);
   }
 
   async getAllTanzaku() {

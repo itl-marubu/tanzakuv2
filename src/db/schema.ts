@@ -27,9 +27,6 @@ export const tanzaku = sqliteTable("Tanzaku", {
   id: text("id").primaryKey(),
   content: text("content").notNull(),
   userName: text("userName").notNull(),
-  visiblePattern: integer("visiblePattern", { mode: "boolean" })
-    .notNull()
-    .default(true),
   // 0=適切(表示)、1=不適切(非表示)
   validationResult: integer("validationResult").notNull().default(0),
   logicalDelete: integer("logicalDelete", { mode: "boolean" })
