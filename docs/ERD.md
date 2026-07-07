@@ -4,35 +4,6 @@
 
 ```mermaid
 erDiagram
-"AdminUser" {
-  String id PK "UUID"
-  String email UK
-  String password "nullable(bcrypt ハッシュ)"
-  DateTime createdAt
-  DateTime updatedAt
-}
-"GoogleOauth" {
-  String id PK "Google の sub"
-  String email UK
-  String userId FK,UK
-  DateTime createdAt
-  DateTime updatedAt
-}
-"GitHubOauth" {
-  Int id PK "AUTOINCREMENT"
-  String email UK
-  String userId FK,UK
-  DateTime createdAt
-  DateTime updatedAt
-}
-"RefreshToken" {
-  String id PK "cuid2"
-  String token UK "cuid2"
-  DateTime expiresAt
-  DateTime createdAt
-  DateTime updatedAt
-  String userId FK
-}
 "Event" {
   String id PK "UUID"
   String name
@@ -50,9 +21,6 @@ erDiagram
   DateTime createdAt
   String eventId FK "nullable(null=レガシー)"
 }
-"GoogleOauth" |o--|| "AdminUser" : user
-"GitHubOauth" |o--|| "AdminUser" : user
-"RefreshToken" }o--|| "AdminUser" : user
 "Tanzaku" }o--o| "Event" : event
 ```
 
@@ -64,4 +32,5 @@ erDiagram
   `GET /tanzaku/client` が返した行は false になり、表示可能な行が尽きるとリセットされる
 - `Tanzaku.eventId` が null の行はイベント制導入前のレガシーデータ。
   アクティブイベントが無いときの表示対象になる
-- `GitHubOauth` はスキーマのみ存在(API 未実装)
+- 認証系テーブル(AdminUser / GoogleOauth / GitHubOauth / RefreshToken)は
+  未使用だったため migrations/0006 で削除済み
