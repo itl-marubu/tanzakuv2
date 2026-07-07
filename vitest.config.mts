@@ -21,7 +21,6 @@ export default defineConfig(async () => {
           d1Databases: { DB: "test-db" },
           bindings: {
             TEST_MIGRATIONS: migrations,
-            JWT_SECRET: "test-jwt-secret",
             ADMIN_ID: "admin",
             ADMIN_PWD: "password"
           }
