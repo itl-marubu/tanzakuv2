@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newCuid, newUuid } from "../src/lib/id";
+import { newUuid } from "../src/lib/id";
 
 describe("id generators", () => {
   it("newUuid は UUID v4 形式", () => {
@@ -8,12 +8,7 @@ describe("id generators", () => {
     );
   });
 
-  it("newCuid は cuid2 形式(英小文字始まり・24文字)", () => {
-    expect(newCuid()).toMatch(/^[a-z][a-z0-9]{23}$/);
-  });
-
   it("毎回異なる値を生成する", () => {
     expect(newUuid()).not.toBe(newUuid());
-    expect(newCuid()).not.toBe(newCuid());
   });
 });
