@@ -86,9 +86,17 @@ export const tanzaku = sqliteTable("Tanzaku", {
   eventId: text("eventId").references(() => event.id)
 });
 
+export const appConfig = sqliteTable("AppConfig", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  // DDL に DEFAULT がないため insert/update 時に明示必須
+  updatedAt: text("updatedAt").notNull()
+});
+
 export type AdminUserRow = typeof adminUser.$inferSelect;
 export type GoogleOauthRow = typeof googleOauth.$inferSelect;
 export type RefreshTokenRow = typeof refreshToken.$inferSelect;
 export type EventRow = typeof event.$inferSelect;
 export type TanzakuRow = typeof tanzaku.$inferSelect;
 export type TanzakuInsert = typeof tanzaku.$inferInsert;
+export type AppConfigRow = typeof appConfig.$inferSelect;
