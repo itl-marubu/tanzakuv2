@@ -1,11 +1,13 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { adminBasicAuth } from "../middleware/basicAuth";
+import { updateConfigSchema } from "../schemas/config.schema";
 import { createEventSchema } from "../schemas/event.schema";
 import {
   editTanzakuSchema,
   manageCreateTanzakuSchema
 } from "../schemas/tanzaku.schema";
+import { ConfigService } from "../services/config.service";
 import { EventService } from "../services/event.service";
 import { TanzakuService } from "../services/tanzaku.service";
 
@@ -136,6 +138,18 @@ manage.post("/events/:id/activate", async (c) => {
   } catch (error) {
     console.error("Failed to activate event:", error);
     return c.json({ error: "Failed to activate event" }, 500);
+  }
+});
+
+manage.put("/config", zValidator("json", updateConfigSchema), async (c) => {
+  const service = new ConfigService(c.env.DB);
+  try {
+    const { festivalMode } = c.req.valid("json");
+    await service.setFestivalMode(festivalMode);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to update config:", error);
+    return c.json({ error: "Failed to update config" }, 500);
   }
 });
 

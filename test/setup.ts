@@ -15,6 +15,7 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM GoogleOauth"),
     env.DB.prepare("DELETE FROM GitHubOauth"),
     env.DB.prepare("DELETE FROM Event"),
-    env.DB.prepare("DELETE FROM AdminUser")
+    env.DB.prepare("DELETE FROM AdminUser"),
+    env.DB.prepare("DELETE FROM AppConfig")
   ]);
 });
