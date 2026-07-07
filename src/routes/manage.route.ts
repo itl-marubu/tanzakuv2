@@ -14,7 +14,12 @@ const manage = new Hono<{ Bindings: CloudflareBindings }>();
 // 旧管理画面(インライン HTML)はフロントエンドの /admin へ移設済み。
 // ブックマーク互換のため GET /manage はフロントへリダイレクトする(認証不要)。
 manage.get("/", (c) => {
-  return c.redirect(`${c.env.FRONTEND_BASEURL}/admin`, 302);
+  const base = c.env.FRONTEND_BASEURL;
+  if (!base) {
+    // ローカルで .dev.vars 未設定のときに "undefined/admin" へ飛ばさない
+    return c.json({ error: "FRONTEND_BASEURL is not configured" }, 500);
+  }
+  return c.redirect(`${base}/admin`, 302);
 });
 
 // これ以降の管理 API は全て Basic 認証
