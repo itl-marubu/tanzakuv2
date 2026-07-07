@@ -1,44 +1,58 @@
-import { PrismaD1 } from "@prisma/adapter-d1";
-import { PrismaClient } from "../generated/prisma";
+import { createDb } from "../db/client";
+import type { EventRow } from "../db/schema";
+import { nowForDb, toApiDate } from "../lib/dates";
+import { newUuid } from "../lib/id";
+import { EventRepository } from "../repositories/event.repository";
+
+// API レスポンス形(旧 Prisma + c.json と同一): createdAt は ISO 8601(Z)
+const serialize = (row: EventRow) => ({
+  ...row,
+  createdAt: toApiDate(row.createdAt)
+});
 
 export class EventService {
-  private prisma: PrismaClient;
+  private readonly events: EventRepository;
 
   constructor(db: D1Database) {
-    const adapter = new PrismaD1(db);
-    this.prisma = new PrismaClient({ adapter });
+    this.events = new EventRepository(createDb(db));
   }
 
   async createEvent(data: { name: string; description?: string }) {
-    return await this.prisma.event.create({ data });
+    const created = await this.events.insert({
+      id: newUuid(),
+      name: data.name,
+      description: data.description ?? null,
+      createdAt: nowForDb()
+    });
+    return serialize(created);
   }
 
+  /** 旧 Prisma の include._count と同じ {_count:{tanzakus:N}} 形で返す(管理画面互換) */
   async getAllEvents() {
-    return await this.prisma.event.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { _count: { select: { tanzakus: true } } }
-    });
+    const rows = await this.events.findAllWithCount();
+    return rows.map(({ tanzakuCount, ...row }) => ({
+      ...serialize(row),
+      _count: { tanzakus: tanzakuCount }
+    }));
   }
 
   async getActiveEvent() {
-    return await this.prisma.event.findFirst({
-      where: { isActive: true }
-    });
+    const row = await this.events.findActive();
+    return row ? serialize(row) : null;
   }
 
   async activateEvent(id: string) {
-    const event = await this.prisma.event.findUnique({ where: { id } });
+    const event = await this.events.findById(id);
     if (!event) {
       throw new Error(`Event not found: ${id}`);
     }
-    const [, activated] = await this.prisma.$transaction([
-      this.prisma.event.updateMany({ data: { isActive: false } }),
-      this.prisma.event.update({ where: { id }, data: { isActive: true } })
-    ]);
-    return activated;
+    await this.events.activateExclusively(id);
+    const activated = await this.events.findById(id);
+    // 直前に存在確認済みのため activated は必ず存在する
+    return activated ? serialize(activated) : null;
   }
 
   async deactivateAll() {
-    return await this.prisma.event.updateMany({ data: { isActive: false } });
+    await this.events.deactivateAll();
   }
 }
