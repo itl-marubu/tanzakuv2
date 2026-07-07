@@ -12,6 +12,8 @@ tags:
     description: tanzakuの操作に関するエンドポイント
   - name: accounts
     description: アカウント管理に関するエンドポイント
+  - name: config
+    description: グローバル設定に関するエンドポイント
   - name: manage
     description: 管理者用エンドポイント(Basic認証)
 
@@ -119,6 +121,15 @@ components:
               properties:
                 tanzakus:
                   type: number
+
+    Config:
+      type: object
+      required:
+        - festivalMode
+      properties:
+        festivalMode:
+          type: string
+          description: 現在のフェスティバルモード。未設定時のデフォルトは "tanabata"
 
     TanzakuEditOperation:
       oneOf:
@@ -303,6 +314,21 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Tanzaku"
+
+  /config:
+    get:
+      tags:
+        - config
+      operationId: getConfig
+      summary: グローバル設定を取得
+      description: 認証不要でフェスティバルモードなどのグローバル設定を取得します
+      responses:
+        "200":
+          description: 現在の設定
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Config"
 
   /auth/signup:
     post:
@@ -607,6 +633,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Success"
+        "500":
+          description: エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /manage/config:
+    put:
+      tags:
+        - manage
+      operationId: manageUpdateConfig
+      summary: 管理者用:フェスティバルモードの更新
+      description: グローバル設定(festivalMode)を実行時に切り替えます
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - festivalMode
+              properties:
+                festivalMode:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          description: バリデーションエラー
         "500":
           description: エラー
           content:
