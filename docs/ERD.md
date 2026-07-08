@@ -15,6 +15,7 @@ erDiagram
   String id PK "UUID"
   String content "最大14文字"
   String userName
+  Boolean visiblePattern "表示ローテーション用"
   Int validationResult "0=適切 1=不適切"
   Boolean logicalDelete
   DateTime createdAt
@@ -27,10 +28,8 @@ erDiagram
 
 - DATETIME 列の実体は TEXT。`YYYY-MM-DD HH:MM:SS`(UTC)と ISO 8601 が混在しうる。
   読み取りは `parseDbDate()` 両対応、書き込みは ISO 8601(Z)に統一(`src/lib/dates.ts`)
-- `GET /tanzaku/client` のウォール表示ローテーションは書き込みゼロのステートレス計算
-  (`src/lib/rotation.ts` + `TanzakuService.getClientTanzaku`)。
-  かつて存在した `Tanzaku.visiblePattern`(消費型ローテーション用フラグ)は
-  migrations/0007 で削除済み
+- `Tanzaku.visiblePattern`: ウォール表示のローテーションに使用。
+  `GET /tanzaku/client` が返した行は false になり、表示可能な行が尽きるとリセットされる
 - `Tanzaku.eventId` が null の行はイベント制導入前のレガシーデータ。
   アクティブイベントが無いときの表示対象になる
 - 認証系テーブル(AdminUser / GoogleOauth / GitHubOauth / RefreshToken)は
