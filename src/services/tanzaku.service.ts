@@ -101,7 +101,10 @@ export class TanzakuService {
    *
    * - 新着セグメント: 直近60秒(FRESH_WINDOW_MS)以内に作成された表示可能な短冊を
    *   新しい順に最大 `limit - FRESH_RESERVED_SLOTS` 件。window/seed に非依存
-   *   (サーバー時刻 `now` 基準)なので、リロード連打でも新着は必ず先頭に出る
+   *   (サーバー時刻 `now` 基準)なので、リロード連打でも同じ新着が先頭に出る。
+   *   ただし60秒以内の投稿がこの枠を超えた場合、溢れた分(古い方)は新着として
+   *   採用されず巡回セグメントの母集団へ回る。「投稿直後は必ず出る」ではなく
+   *   「直近 `limit - FRESH_RESERVED_SLOTS` 件に入っていれば出る」が正しい保証
    * - 巡回セグメント: 残り枠を、新着以外の表示可能な短冊の安定順序リスト
    *   (createdAt ASC, id ASC)上の窓で充填する。窓の位置は
    *   `offset = (window × 残り枠数 + fnv1a(seed)) mod poolCount` で決定的に求め、
