@@ -1,83 +1,115 @@
-# iTL七夕祭 短冊システム — システム説明書
+# iTL七夕祭 / iTL桜まつり 短冊システム — システム説明書
 
-> 対象リポジトリ: `tanzakuv2`（バックエンド）/ `tanzaku-frontend-v2`（フロントエンド）
+> 対象リポジトリ: [`tanzakuv2`](https://github.com/itl-marubu/tanzakuv2)（バックエンド・本リポジトリ）/ [`tanzaku-frontend-v2`](https://github.com/itl-marubu/tanzaku-frontend-v2)（フロントエンド）
+>
+> フロントエンド内部の詳細（描画・レイアウト計算・コンポーネント構成）は、フロントエンド側の `README.md` / `architecture.md` を正本とします。本書は**システム全体の俯瞰**とバックエンドの仕様をまとめたものです。
 
 ---
 
 ## 1. システム概要
 
-iTL七夕祭に来場した参加者が、スマートフォンやPCから「短冊」にメッセージと名前を書いて投稿し、会場スクリーンに竹へ飾られた短冊としてリアルタイムで表示するWebアプリケーション。
+学園祭イベントの来場者が、スマートフォンやPCから「短冊」（七夕モード）／「抱負」（桜モード）を投稿し、会場スクリーンにリアルタイム掲示するWebアプリケーション。
 
 | 項目 | 内容 |
 |------|------|
-| サービス名 | iTL七夕祭 短冊アプリ |
-| フロントエンドURL | `tanzaku.mizphses.com` |
-| バックエンドURL | `tanzakuv2.fuminori.workers.dev` |
-| 対象ユーザー | 七夕祭来場者・運営管理者 |
-| 主な利用シーン | QRコードで来場者がアクセスして短冊投稿、会場スクリーンに `/tree` を表示して短冊をリアルタイム上映 |
+| サービス名 | iTL七夕祭 / iTL桜まつり 短冊アプリ |
+| フロントエンドURL | `https://tanzaku.mizphses.com` |
+| バックエンドURL | `https://tanzakuv2.fuminori.workers.dev` |
+| 対象ユーザー | イベント来場者・会場運営／管理者 |
+| 主な利用シーン | QRコードから来場者が投稿 / 会場スクリーンに `/tree` を掲示 / 運営が `/admin` からモデレーション |
+
+### フェスティバルモード
+
+1つのコードベースで2つのイベントモードを持ち、**DBの設定値（`AppConfig.festivalMode`）で実行時に切り替え**られます。管理画面から変更すると、掲示ビューは60秒以内にリロードなしで追従します。
+
+| モード | イベント名 | 投稿物 | 掲示枚数 | カード意匠 |
+|--------|-----------|--------|---------|-----------|
+| `tanabata` | iTL七夕祭 | 短冊 | 10枚（固定座標） | 縦型 300×500・縦書き・笹背景 |
+| `sakura` | iTL桜まつり | 抱負 | 14枚（動的配置） | 横型 375×225・横書き・桜背景＋花びら |
 
 ---
 
-## 2. アクセス経路の分離
+## 2. アクセス経路
 
-来場者と管理者ではアクセス経路が完全に分離されています。
+来場者・会場スクリーン・管理者はすべてフロントエンドのSPAを入口とし、管理APIのみBasic認証で保護されています。
 
 ```mermaid
 graph LR
-    subgraph visitors["来場者経路"]
+    subgraph visitors["来場者・会場"]
         U["👤 来場者"]
-        FE["Next.js Frontend\ntanzaku.mizphses.com"]
-        API_TZ["Hono API\n/tanzaku"]
+        SCR["🖥 会場スクリーン"]
     end
 
-    subgraph admins["管理者経路"]
+    subgraph admins["運営"]
         ADM["🔑 管理者"]
-        MANAGE["Hono /manage\n(HTMLに包含されたUI)\ntanzakuv2.fuminori.workers.dev/manage"]
-        BASIC["Basic認証\nADMIN_ID / ADMIN_PWD"]
     end
 
-    U -->|"QRコード"| FE
-    FE <-->|"REST API"| API_TZ
+    subgraph FE["React SPA — tanzaku.mizphses.com"]
+        P_POST["/ 投稿フォーム"]
+        P_TREE["/tree 掲示ビュー"]
+        P_ADMIN["/admin 管理画面"]
+    end
 
-    ADM -->|"直接アクセス"| BASIC
-    BASIC --> MANAGE
+    subgraph BE["Hono API — tanzakuv2.fuminori.workers.dev"]
+        API_PUB["/tanzaku・/config<br/>公開API（認証なし）"]
+        API_MNG["/manage/*<br/>管理API（Basic認証）"]
+    end
 
-    style FE fill:#dbeafe
-    style MANAGE fill:#fef3c7
-    style BASIC fill:#fee2e2
+    U -->|"QRコード"| P_POST
+    SCR --> P_TREE
+    ADM --> P_ADMIN
+
+    P_POST --> API_PUB
+    P_TREE --> API_PUB
+    P_ADMIN -->|"Authorization: Basic"| API_MNG
+
+    style P_POST fill:#dbeafe,color:#000
+    style P_TREE fill:#dbeafe,color:#000
+    style P_ADMIN fill:#fce7f3,color:#000
+    style API_PUB fill:#fef3c7,color:#000
+    style API_MNG fill:#fee2e2,color:#000
 ```
 
-| 層 | 経路 | 認証方式 | 主な機能 |
-|---|---|---|---|
-| 来場者 | `tanzaku.mizphses.com` → Next.js | なし | 短冊投稿・閲覧 |
-| 管理者 | `tanzakuv2.fuminori.workers.dev/manage` → Hono直届けHTML | Basic認証 | 短冊管理・イベント管理 |
+| 層 | 経路 | 認証方式 |
+|---|---|---|
+| 来場者 / 会場スクリーン | `tanzaku.mizphses.com` → 公開API | なし |
+| 管理者 | `tanzaku.mizphses.com/admin` → `/manage/*` | Basic認証（`ADMIN_ID` / `ADMIN_PWD`） |
+
+> **注意**: 管理画面UIは**フロントエンドの `/admin`** にあります。かつてバックエンドがインラインHTMLで返していた `/manage` の画面は廃止済みで、`GET /manage` はブックマーク互換のため `FRONTEND_BASEURL/admin` へ302リダイレクトするだけです（このリダイレクトのみ認証不要）。
 
 ---
 
 ## 3. 主な機能
 
-### 来場者向け（`tanzaku.mizphses.com`）
+### 来場者向け
 
 | 機能 | 詳細 |
 |------|------|
-| 短冊作成・投稿 | メッセージ（最大14文字）と名前（最大8文字）を入力して送信 |
-| プレビュー | 送信前にモーダルで短冊の見た目を確認 |
-| SNS共有 | 投稿後にCanvas描画した短冊画像をXへ共有 |
-| 短冊閲覧 | `/tree` で竹に飾られた短冊をリアルタイム表示（1分ごと自動更新） |
-| フェスティバルモード | `NEXT_PUBLIC_FESTIVAL_MODE` 環境変数で「七夕」/「桜まつり」を切替 |
+| 投稿 | メッセージ（最大14文字）と名前（最大8文字・フロント側の制約）を入力して送信 |
+| プレビュー | 送信前にモーダルで実際のカード描画を確認 |
+| SNS共有 | 投稿後、Canvas描画したカード画像をWeb Share API または X の intent URL で共有 |
+| 掲示ビュー | `/tree` で背景（笹／桜）の上にカードを配置し、60秒ごとに入れ替え |
 
-### 管理者向け（`tanzakuv2.fuminori.workers.dev/manage`）
+### 会場スクリーン向け（`/tree`）
 
-管理画面はHonoバックエンドが**HTML/CSS/JavaScriptを直接返却**する構成で、Basic認証で保護されています。
+- 60秒ごとに `GET /tanzaku/client` をポーリングし、表示中のカードを入れ替え
+- 同じ周期で `GET /config` も再取得し、フェスティバルモードの切り替えに追従
+- 無人稼働のため3重のガード（リクエストIDガード・単発化ゲート・30秒タイムアウト）で更新停止を防止
+- 投稿用QRコードとイベント案内を常時表示
 
-| 機能 | 詳細 |
-|------|------|
-| 短冊一覧 | 全短冊を表示。検索・フィルタ・ソート対応 |
-| 短冊編集・削除 | 個別・一括の編集・論理削除・完全削除 |
-| バリデーション切替 | AI審査結果（適切/不適切）を手動で修正 |
-| イベント管理 | 複数イベントの作成・有効化・切替 |
-| CSV出力 | 表示中の短冊データをCSVダウンロード |
-| 新規作成 | 管理画面から直接短冊を作成（AI審査なし） |
+### 管理者向け（`/admin`）
+
+| 機能 | 対応API |
+|------|---------|
+| ログイン（資格情報の疎通確認） | `GET /manage/session` |
+| 短冊一覧・検索・フィルタ・ソート・統計 | `GET /manage/tanzakus` |
+| 一括編集 / 論理削除 / 物理削除 | `POST /manage/tanzakus` |
+| 新規作成（AI審査スキップ） | `POST /manage/tanzakus/create` |
+| イベント作成・アクティブ化・全無効化 | `GET|POST /manage/events` ほか |
+| フェスティバルモード切替 | `PUT /manage/config` |
+| CSV出力 | （クライアント側で生成） |
+
+資格情報は `localStorage` / `sessionStorage` に保存せず React Context（メモリ）にのみ保持します。XSS時の露出範囲を抑えるための選択で、リロード時に再ログインが必要になるトレードオフを受け入れています。
 
 ---
 
@@ -85,443 +117,535 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph Visitor["来場者"]
+    subgraph Users["利用者"]
         U["👤 来場者"]
-    end
-
-    subgraph Admin["管理者"]
+        SCR["🖥 会場スクリーン"]
         ADM["🔑 管理者"]
     end
 
-    subgraph CF_FE["Cloudflare Workers — フロントエンド"]
-        FE["Next.js 15 App\n(OpenNext.js Cloudflare)\ntanzaku.mizphses.com"]
+    subgraph CF_FE["Cloudflare Workers — Static Assets"]
+        FE["React SPA (Vite ビルド)<br/>TanStack Router<br/>tanzaku.mizphses.com"]
     end
 
-    subgraph CF_BE["Cloudflare Workers — バックエンド"]
-        BE_TZ["Hono /tanzaku\n来場者向けAPI"]
-        BE_AUTH["Hono /auth\n認証 API"]
-        BE_MANAGE["Hono /manage\n管理画面 (HTML同居)\nBasic認証"]
-        AI["Cloudflare AI\n(Llama 3.3 70B)"]
+    subgraph CF_BE["Cloudflare Workers — Hono API"]
+        R_TZ["/tanzaku<br/>公開API"]
+        R_CFG["/config<br/>公開設定API"]
+        R_MNG["/manage/*<br/>管理API（Basic認証）"]
     end
 
-    subgraph CF_DB["Cloudflare D1"]
-        DB[("SQLite Database\nTANZAKU-V2")]
+    subgraph CF_RES["Cloudflare リソース"]
+        DB[("D1 (SQLite)<br/>TANZAKU-V2")]
+        AI["Workers AI<br/>Llama 4 Scout"]
     end
 
-    subgraph External["外部サービス"]
-        Google["Google OAuth 2.0\n(認証フロー用）"]
-        GA["Google Analytics"]
-        Twitter["X (Twitter) 共有"]
-    end
+    GA["Google Analytics<br/>(gtag)"]
+    X["X (Twitter) / Web Share API"]
 
     U -->|"QRコード"| FE
-    FE <-->|"REST API (HTTPS)"| BE_TZ
-    FE -->|"Google OAuth"| BE_AUTH
-    BE_AUTH <--> Google
+    SCR --> FE
+    ADM --> FE
 
-    ADM -->|"Basic認証\n直接アクセス"| BE_MANAGE
+    FE <-->|"HTTPS"| R_TZ
+    FE <-->|"HTTPS"| R_CFG
+    FE <-->|"HTTPS + Basic"| R_MNG
 
-    BE_TZ & BE_AUTH & BE_MANAGE --> DB
-    BE_TZ -.->|"コンテンツ審査"| AI
+    R_TZ & R_CFG & R_MNG --> DB
+    R_TZ -.->|"コンテンツ審査<br/>(POST 時のみ)"| AI
     FE --> GA
-    FE --> Twitter
+    FE --> X
 
-    style FE fill:#dbeafe,stroke:#3b82f6
-    style BE_TZ fill:#fef3c7,stroke:#f59e0b
-    style BE_MANAGE fill:#fef3c7,stroke:#f59e0b
-    style BE_AUTH fill:#fef3c7,stroke:#f59e0b
-    style DB fill:#d1fae5,stroke:#10b981
-    style AI fill:#ede9fe,stroke:#7c3aed
-    style BE_MANAGE stroke-width:3px,stroke:#ef4444
+    style FE fill:#dbeafe,stroke:#3b82f6,color:#000
+    style R_TZ fill:#fef3c7,stroke:#f59e0b,color:#000
+    style R_CFG fill:#fef3c7,stroke:#f59e0b,color:#000
+    style R_MNG fill:#fee2e2,stroke:#ef4444,stroke-width:3px,color:#000
+    style DB fill:#d1fae5,stroke:#10b981,color:#000
+    style AI fill:#ede9fe,stroke:#7c3aed,color:#000
 ```
+
+**認証スタックは全廃済み**です。かつて存在した `/auth`（Google OAuth・JWT・リフレッシュトークン）と関連テーブルは、未使用のため撤去されました（バックエンド: `migrations/0006` + PR #14 / フロントエンド: Googleログイン導線の削除）。現在システムに残る認証は管理APIのBasic認証のみです。
 
 ---
 
-## 5. フロントエンド詳細構成図
+## 5. バックエンド構成（レイヤード）
+
+`route → service → repository → Drizzle → D1` の一方向依存です。
 
 ```mermaid
 graph TB
-    subgraph Pages["ページ (src/app)"]
-        P_HOME["/\n短冊投稿フォーム"]
-        P_TREE["/tree\n短冊一覧（竹）表示"]
-        P_ADMIN["/admin\nフェスティバルモード表示"]
-        P_AUTH["/auth\n認証コールバック"]
-        P_PRIV["/privacy\nプライバシー"]
-        P_TOS["/tos\n利用規約"]
-    end
-
-    subgraph HomeComp["ホームページコンポーネント"]
-        Form["form.tsx\n投稿フォーム (React Hook Form)"]
-        Preview["PreviewModal.tsx"]
-        Toast["Toast.tsx"]
-        TwDlg["TwitterDialog.tsx"]
-    end
-
-    subgraph TreeComp["Treeページコンポーネント"]
-        T2I["t2i.tsx\n短冊→Canvas描画"]
-        Meta["meta.tsx"]
-        QR["QrCode.tsx"]
-    end
-
-    subgraph Shared["共通"]
-        Tanzaku["createTanzaku/"]
-        Navbar["Navbar.tsx"]
-        Footer["Footer.tsx"]
-    end
-
-    subgraph Infra["インフラ層"]
-        APIClient["src/api/client.ts\nopenapi-fetch"]
-        Types["src/api/generated/types.ts"]
-        Auth["src/lib/login.ts\nJotai トークン管理"]
-        FestMode["src/lib/festivalModeAtom.ts\nJotai モード管理"]
-    end
-
-    P_HOME --> Form & Navbar & Footer
-    P_TREE --> T2I & Meta & QR
-    P_ADMIN --> FestMode
-    P_AUTH --> Auth
-
-    Form --> Preview & Toast & TwDlg & APIClient
-    T2I --> APIClient & Tanzaku
-    APIClient --> Types
-    Auth --> APIClient
-
-    style P_HOME fill:#dbeafe
-    style P_TREE fill:#dbeafe
-    style P_ADMIN fill:#f3f4f6
-    style APIClient fill:#fef3c7
-```
-
-> **注意**: フロントエンドの `/admin` はフェスティバルモードの表示のみであり、**短冊管理画面はバックエンドの `/manage`** に実装されています。
-
----
-
-## 6. バックエンド詳細構成図
-
-```mermaid
-graph TB
-    subgraph HonoApp["Hono Application (src/index.ts)"]
+    subgraph App["src/index.ts — Hono App"]
         CORS["CORS ミドルウェア"]
     end
 
-    subgraph PublicRoutes["公開ルート（認証不要）"]
-        R_TZ["/tanzaku"]
-        R_AUTH["/auth"]
+    subgraph Routes["src/routes — HTTP層（zod 検証・ステータス変換）"]
+        RT["tanzaku.route.ts<br/>公開API"]
+        RC["config.route.ts<br/>公開設定API"]
+        RM["manage.route.ts<br/>管理API"]
+        MW["middleware/basicAuth.ts<br/>ADMIN_ID / ADMIN_PWD<br/>未設定時は 500 (fail-closed)"]
     end
 
-    subgraph ProtectedRoute["保護ルート（Basic認証）"]
-        R_MANAGE["/manage"]
-        BASIC_MW["basicAuthミドルウェア\nADMIN_ID / ADMIN_PWD"]
-        MANAGE_HTML["GET / → HTML返却\n管理画面UI"]
-        MANAGE_API["GET /tanzakus\nPOST /tanzakus\nPOST /tanzakus/create"]
-        EVENT_API["GET /events\nPOST /events\nPOST /events/:id/activate\nPOST /events/deactivate-all"]
+    subgraph Schemas["src/schemas — zod スキーマ"]
+        SC["tanzaku / event / config"]
     end
 
-    subgraph TanzakuEndpoints["短冊 API"]
-        T1["GET /tanzaku"]
-        T2["POST /tanzaku + AI審査"]
-        T3["GET /tanzaku/check/:id"]
-        T4["GET /tanzaku/client"]
+    subgraph Services["src/services — ビジネスロジック"]
+        TS["TanzakuService<br/>投稿・ローテーション・一括編集"]
+        MS["ModerationService<br/>Workers AI 検証（注入可能）"]
+        ES["EventService<br/>排他的アクティブ化"]
+        CS["ConfigService<br/>festivalMode"]
     end
 
-    subgraph AuthEndpoints["認証 API"]
-        A1["GET /auth/google"]
-        A2["POST /auth/signup"]
-        A3["POST /auth/login"]
-        A4["POST /auth/refresh"]
+    subgraph Repos["src/repositories — DBアクセス層"]
+        TR["TanzakuRepository"]
+        ER["EventRepository"]
+        CR["ConfigRepository"]
     end
 
-    subgraph Services["サービス層"]
-        TS["TanzakuService"]
-        AS["AuthService"]
-        ES["EventService"]
+    subgraph Lib["src/lib — 純粋関数"]
+        LR["rotation.ts<br/>FNV-1a / offset / splitWindow"]
+        LD["dates.ts<br/>DATETIME 両形式の読み書き"]
+        LI["id.ts<br/>UUID 生成"]
     end
 
-    subgraph CF["Cloudflare"]
-        D1[("D1 Database")]
-        CFAI["Cloudflare AI"]
+    subgraph DBL["src/db"]
+        DS["schema.ts<br/>Drizzle 定義"]
+        DC["client.ts<br/>createDb(d1)"]
     end
 
-    HonoApp --> CORS --> PublicRoutes & ProtectedRoute
-    R_MANAGE --> BASIC_MW --> MANAGE_HTML & MANAGE_API & EVENT_API
-    R_TZ --> T1 & T2 & T3 & T4
-    R_AUTH --> A1 & A2 & A3 & A4
+    CFAI["Workers AI"]
+    D1[("D1")]
 
-    T1 & T3 & T4 --> TS
-    T2 --> TS
-    T2 -.-> CFAI
-    A1 & A2 & A3 & A4 --> AS
-    MANAGE_API --> TS
-    EVENT_API --> ES
+    App --> CORS --> Routes
+    RM --> MW
+    Routes --> Schemas
+    RT --> TS
+    RC --> CS
+    RM --> TS & ES & CS
+    TS --> MS
+    TS --> LR & LD & LI
+    ES & CS --> LD & LI
+    MS -.-> CFAI
+    TS --> TR & ER
+    ES --> ER
+    CS --> CR
+    TR & ER & CR --> DS --> DC --> D1
 
-    TS & AS & ES --> D1
-
-    style BASIC_MW fill:#fee2e2
-    style MANAGE_HTML fill:#fef3c7
-    style CFAI fill:#ede9fe
-    style D1 fill:#d1fae5
+    style MW fill:#fee2e2,color:#000
+    style CFAI fill:#ede9fe,color:#000
+    style D1 fill:#d1fae5,color:#000
+    style Lib fill:#e0f2fe,color:#000
 ```
+
+### ディレクトリ構成
+
+```
+src/
+├── index.ts                  # アプリ組み立て（CORS・ルート登録のみ）
+├── db/
+│   ├── schema.ts             # Drizzle スキーマ（migrations/*.sql の写像。DDL は生成しない）
+│   └── client.ts             # createDb(d1)
+├── middleware/basicAuth.ts   # 管理API用 Basic 認証（fail-closed）
+├── routes/                   # HTTP層
+├── schemas/                  # zod スキーマ
+├── services/                 # ビジネスロジック
+├── repositories/             # DBアクセス層
+└── lib/                      # ローテーション計算 / 日時変換 / ID生成
+```
+
+> マイグレーションの正本は `migrations/*.sql` です。`src/db/schema.ts` はその写像であり、ここからDDLは生成しません。
 
 ---
 
-## 7. データモデル（ERD）
+## 6. データモデル（ERD）
 
 ```mermaid
 erDiagram
-    AdminUser {
-        String id PK "UUID"
-        String email UK
-        String password "nullable"
-        DateTime createdAt
-        DateTime updatedAt
-    }
-
-    GoogleOauth {
-        String id PK "GoogleユーザーID"
-        String email UK
-        String userId FK
-        DateTime createdAt
-        DateTime updatedAt
-    }
-
-    GitHubOauth {
-        Int id PK "GitHubユーザーID"
-        String email UK
-        String userId FK
-        DateTime createdAt
-        DateTime updatedAt
-    }
-
-    RefreshToken {
-        String id PK "cuid"
-        String token UK
-        DateTime expiresAt "30日有効"
-        DateTime createdAt
-        DateTime updatedAt
-        String userId FK
-    }
-
     Event {
         String id PK "UUID"
         String name
         String description "nullable"
-        Boolean isActive "同時に1件のみtrue"
+        Boolean isActive "排他的（同時に1件のみ）"
         DateTime createdAt
     }
 
     Tanzaku {
         String id PK "UUID"
         String content "最大14文字"
-        String userName "投稿者名"
-        Boolean visiblePattern "表示ローテーション管理"
+        String userName
         Int validationResult "0=適切 / 1=不適切"
         Boolean logicalDelete "論理削除フラグ"
         DateTime createdAt
-        String eventId FK "nullable"
+        String eventId FK "nullable（null=レガシー）"
     }
 
-    AdminUser ||--o| GoogleOauth : "1対1"
-    AdminUser ||--o| GitHubOauth : "1対1"
-    AdminUser ||--o{ RefreshToken : "1対多"
+    AppConfig {
+        String key PK "例: festivalMode"
+        String value
+        DateTime updatedAt
+    }
+
     Event ||--o{ Tanzaku : "1対多"
 ```
 
+### 取り決め
+
+- **DATETIME 列の実体は TEXT**。既存データは `YYYY-MM-DD HH:MM:SS`（UTC・SQLiteの `CURRENT_TIMESTAMP` 由来）と ISO 8601（旧Prisma書き込み由来）が混在します。読み取りは `parseDbDate()` で両対応、書き込みは ISO 8601（Z）に統一（`src/lib/dates.ts`）
+- **BOOLEAN 列の実体は INTEGER 0/1**（Drizzle の `integer({ mode: "boolean" })`）
+- `Tanzaku.eventId` が `null` の行はイベント制導入前のレガシーデータ。アクティブイベントが無いときの表示対象になります
+- 削除済みテーブル: 認証系4テーブル（`AdminUser` / `GoogleOauth` / `GitHubOauth` / `RefreshToken`）は `migrations/0006` で削除
+- 削除済み列: `Tanzaku.visiblePattern`（消費型ローテーション用フラグ）は、ステートレス再設計に伴い `migrations/0007` で削除
+
+### マイグレーション履歴
+
+| # | 内容 |
+|---|------|
+| 0001 | 初期スキーマ（Prisma由来。認証系テーブル含む） |
+| 0002 | `Tanzaku.title` を削除 |
+| 0003 | `validationResult` を追加 |
+| 0004 | `Event` テーブル追加・`Tanzaku.eventId` 追加 |
+| 0005 | `AppConfig` テーブル追加（ランタイム設定のKVストア） |
+| 0006 | 未使用の認証系テーブルを削除 |
+| 0007 | `Tanzaku.visiblePattern` を削除 |
+
 ---
 
-## 8. 主要データフロー
+## 7. 主要データフロー
 
-### 短冊投稿フロー
+### 7.1 投稿フロー
 
 ```mermaid
 sequenceDiagram
     actor User as 来場者
-    participant FE as Next.js Frontend
-    participant API as Hono /tanzaku
-    participant AI as Cloudflare AI
-    participant DB as D1 Database
+    participant FE as React SPA (/)
+    participant API as Hono POST /tanzaku
+    participant AI as Workers AI<br/>(Llama 4 Scout)
+    participant DB as D1
 
     User->>FE: メッセージ・名前を入力
-    FE->>FE: バリデーション（content≤14文字）
-    FE->>FE: プレビューモーダル表示
+    FE->>FE: プレビューモーダルで確認
     User->>FE: 送信確定
     FE->>API: POST /tanzaku {content, userName}
-    API->>AI: Llama 3.3 70Bでコンテンツ審査
-    AI-->>API: {result: 0 or 1}
-    API->>DB: INSERT INTO Tanzaku (validationResult付き)
-    DB-->>API: 作成されたTanzakuレコード
-    API-->>FE: JSON Response
-    FE->>User: 完了通知 + X共有ダイアログ
+    API->>API: zod 検証（content ≤ 14文字、超過は 400）
+    API->>AI: guided_json でモデレーション判定
+    alt 判定成功
+        AI-->>API: {result: 0 | 1}
+    else 判定失敗・パース不能
+        Note over API: 安全側に倒し validationResult=1（非表示）で保存<br/>投稿自体は 500 で止めない
+    end
+    API->>DB: アクティブイベントに紐付けて INSERT
+    DB-->>API: 作成レコード
+    API-->>FE: JSON（createdAt は ISO 8601 Z）
+    FE->>FE: Canvas にカードを描画
+    FE->>User: 完了トースト + 共有ダイアログ
 ```
 
-### 短冊表示フロー（/tree ページ）
+モデレーションの詳細（`src/services/moderation.service.ts`）:
+
+- モデルは `@cf/meta/llama-4-scout-17b-16e-instruct`。旧 `llama-3.3-70b` は重く応答を支配していたため差し替え
+- チャット（`messages`）形式 + `guided_json` で構造化出力を強制。few-shot例文の「続き」を生成してしまう `prompt` 形式は不採用
+- 応答から `0`/`1` を頑健に抽出。文中に複数の `result` が現れた場合、値が一意のときだけ採用し、`0`/`1` が混在すれば判別不能として安全側（非表示）に倒す
+
+### 7.2 掲示ビューのローテーション（ステートレス）
+
+`GET /tanzaku/client` は**DBへの書き込みを一切行わない決定的な計算**です。同じ `limit`/`window`/`seed` の呼び出しは（データが変わらない限り）常に同じ結果を返します。
 
 ```mermaid
 sequenceDiagram
     actor Screen as 会場スクリーン
-    participant FE as Next.js /tree
-    participant API as Hono /tanzaku/client
-    participant DB as D1 Database
+    participant FE as React SPA (/tree)
+    participant API as Hono GET /tanzaku/client
+    participant DB as D1
 
-    Screen->>FE: /tree ページアクセス
-    FE->>API: GET /tanzaku/client?limit=10
-    Note over API,DB: visiblePattern=trueのものを取得
-    API->>DB: SELECT WHERE visiblePattern=true AND validationResult=0 AND logicalDelete=false
-    DB-->>API: Tanzaku[]
-    API->>DB: UPDATE visiblePattern=false（取得済みに）
-    Note over API,DB: 全件表示済みなら全レコードをリセット
-    API-->>FE: Tanzaku[] JSON
-    FE->>FE: Canvasで短冊描画（竹背景）
-    FE->>Screen: 短冊表示
-    Note over FE,Screen: 1分ごと自動更新
+    Screen->>FE: /tree を表示
+    FE->>FE: seed を生成（マウント時に一度だけ）・window = 0
+    FE->>API: GET /tanzaku/client?limit=N&window=0&seed=xxx
+
+    API->>DB: アクティブイベントを取得（スコープ決定）
+    API->>DB: 新着セグメント: 直近60秒・表示可能・新しい順<br/>最大 limit - 2 件
+    DB-->>API: fresh[]
+    API->>DB: 巡回プール件数（fresh を除く表示可能な全件）
+    Note over API: offset = (window × 残り枠 + fnv1a(seed)) mod プール件数
+    API->>DB: 安定順序（createdAt ASC, id ASC）上で<br/>offset から残り枠を切り出し（末尾はラップ）
+    DB-->>API: pool[]
+    API-->>FE: [...fresh, ...pool]
+
+    FE->>FE: 背景描画 + カード配置（七夕=固定座標10枚 / 桜=動的14枚）
+    FE->>Screen: 掲示
+
+    loop 60秒ごと
+        FE->>API: GET /config（モード追従）
+        alt 前回の取得が完了している
+            FE->>FE: window をインクリメント
+            FE->>API: GET /tanzaku/client（次のバッチ）
+        else 前回が進行中
+            FE->>FE: この回は見送る（window も進めない）
+        end
+    end
 ```
 
-### 管理者アクセスフロー（Basic認証）
+**設計上の契約**
+
+| セグメント | 内容 |
+|---|---|
+| 新着 | 直近60秒（`FRESH_WINDOW_MS`）以内の表示可能な投稿を新しい順に最大 `limit - 2`（`FRESH_RESERVED_SLOTS`）件。`window`/`seed` に非依存なので、リロードを繰り返しても同じ新着が先頭に出る |
+| 巡回 | 残り枠を、新着以外の安定順序リスト上の窓で充填。`offset = (window × 残り枠数 + fnv1a(seed)) mod プール件数`、末尾に達したら先頭へラップ（最大2クエリに分割） |
+
+- 保証は「投稿直後は必ず出る」ではなく「**直近 `limit - 2` 件に入っていれば出る**」です。60秒以内の投稿がこの枠を超えた場合、溢れた分（古い方）は巡回セグメントの母集団へ回ります
+- `window`/`seed` を省略するとサーバー壁時計から `window` を導出します（カーソル非対応クライアント向けの既定挙動）
+- `limit` はサーバー側で 1〜30 にクランプされます
+- カーソルをクライアントが持つ設計にしているのは、**リロードを「次のバッチへ進める」操作として機能させる**ためです。GETに副作用が無いので、動作確認で `curl` を叩いても会場の表示順は進みません
+
+### 7.3 フェスティバルモードの切り替え
 
 ```mermaid
 sequenceDiagram
     actor Admin as 管理者
-    participant Browser as ブラウザ
-    participant Hono as Hono /manage
-    participant DB as D1 Database
+    participant AD as React SPA (/admin)
+    participant MNG as PUT /manage/config
+    participant CFG as GET /config
+    participant DB as D1 (AppConfig)
+    participant Screen as 会場スクリーン (/tree)
 
-    Admin->>Browser: tanzakuv2.fuminori.workers.dev/manage にアクセス
-    Browser->>Hono: GET /manage
-    Hono->>Browser: 401 Basic認証チャレンジ
-    Browser->>Admin: ID/パスワード入力ダイアログ
-    Admin->>Browser: ADMIN_ID / ADMIN_PWDを入力
-    Browser->>Hono: GET /manage (Basic認証ヘッダ付き)
-    Hono->>Browser: 管理画面HTMLを返却
-    Note over Browser,Hono: 以降、ブラウザから直接API呼び出し
-    Browser->>Hono: GET /manage/tanzakus
-    Hono->>DB: SELECT all tanzakus
-    DB-->>Hono: Tanzaku[]
-    Hono-->>Browser: JSON
-    Browser->>Browser: 管理画面に表示
+    Admin->>AD: モードを選択（tanabata / sakura）
+    AD->>MNG: PUT /manage/config {festivalMode} + Basic認証
+    MNG->>DB: AppConfig を upsert（key="festivalMode"）
+    MNG-->>AD: {success: true}
+    AD->>CFG: 即時 refresh
+    CFG->>DB: SELECT value
+    CFG-->>AD: {festivalMode}
+    Note over Screen: 掲示ビューは60秒周期で /config を再取得
+    Screen->>CFG: GET /config
+    CFG-->>Screen: 新しいモード
+    Screen->>Screen: 配色・文言・BGM・背景・カード意匠を切り替え
 ```
 
+- ビルド時の `VITE_FESTIVAL_MODE` は**起動時の初期値**にすぎず、実際のモードは `GET /config` の値が上書きします
+- 未設定時のデフォルトは `tanabata`（`ConfigService`）
+- 不正値はフロント側で `console.error` を出して現在値を維持します
+
+### 7.4 管理者ログインフロー
+
+```mermaid
+sequenceDiagram
+    actor Admin as 管理者
+    participant AD as React SPA (/admin)
+    participant MC as adminClient.ts
+    participant BE as Hono /manage/*
+
+    Admin->>AD: /admin へアクセス
+    AD-->>Admin: 資格情報が無いのでログインフォーム表示
+    Admin->>AD: ID / パスワードを入力
+    AD->>MC: Base64 エンコード
+    MC->>BE: GET /manage/session (Authorization: Basic)
+    alt 200
+        BE-->>MC: {ok: true}
+        MC->>AD: 資格情報を Context（メモリ）に保持
+        AD-->>Admin: ダッシュボード表示
+    else 401
+        BE-->>MC: 401
+        MC-->>Admin: 「IDまたはパスワードが正しくありません」
+    else 500
+        Note over BE: ADMIN_ID / ADMIN_PWD 未設定（fail-closed）
+    end
+
+    Admin->>BE: 以降の管理操作（毎リクエストに Basic ヘッダーを付与）
+```
+
+CORSの都合上 `credentials: "omit"` とし、`Authorization: Basic` ヘッダーを毎リクエスト手動で付与します。
+
 ---
 
-## 9. APIエンドポイント一覧
+## 8. APIエンドポイント一覧
 
-### 来場者向け短冊 API (`/tanzaku`)
+仕様の正本は `docs/openapi.yml`（OpenAPI 3.0 / version 2.0.0）です。フロントエンドの型生成もこのファイルから行います。
 
-| メソッド | パス | 認証 | 説明 |
-|----------|------|------|------|
-| GET | `/tanzaku` | 不要 | 全短冊取得（イベント情報含む） |
-| POST | `/tanzaku` | 不要 | 短冊作成（AI審査付き） |
-| GET | `/tanzaku/check/:id` | 不要 | ID指定で短冊取得 |
-| GET | `/tanzaku/client` | 不要 | 表示用取得（循環ローテーション、`?limit=N`） |
-
-### 認証 API (`/auth`)
+### 公開API（認証不要）
 
 | メソッド | パス | 説明 |
 |----------|------|------|
-| GET | `/auth/google` | Google OAuth 開始 |
-| POST | `/auth/signup` | メールアドレス登録 |
-| POST | `/auth/login` | メールアドレスログイン |
-| POST | `/auth/refresh` | アクセストークン更新 |
+| GET | `/tanzaku` | 全短冊取得（イベント情報を含む・`createdAt DESC`） |
+| POST | `/tanzaku` | 短冊作成（AI審査付き。`content` は14文字超で400） |
+| GET | `/tanzaku/check/:id` | ID指定で1件取得（無ければ404） |
+| GET | `/tanzaku/client` | 掲示用取得（ステートレス・`?limit=N&window=N&seed=S`） |
+| GET | `/config` | フェスティバルモード取得 |
+| GET | `/manage` | `FRONTEND_BASEURL/admin` へ302リダイレクト（互換用・認証不要） |
 
-### 管理者向け API (`/manage`) — Basic認証必須
+`/tanzaku/client` のクエリは不正値でも400にせず安全なフォールバックへ倒します（`limit` は 10 → 1〜30にクランプ、`window`/`seed` は未指定扱い）。
+
+### 管理API（Basic認証必須）
 
 | メソッド | パス | 説明 |
 |----------|------|------|
-| GET | `/manage` | 管理画面HTMLを返却 |
+| GET | `/manage/session` | 資格情報の疎通確認（`{ok: true}`） |
 | GET | `/manage/tanzakus` | 全短冊取得 |
-| POST | `/manage/tanzakus` | 短冊編集・論理削除・完全削除 |
-| POST | `/manage/tanzakus/create` | 短冊新規作成（AI審査なし） |
-| GET | `/manage/events` | イベント一覧取得 |
+| POST | `/manage/tanzakus` | 一括編集（`update` / `delete`=論理削除 / `hardDelete`=物理削除） |
+| POST | `/manage/tanzakus/create` | 短冊作成（AI審査スキップ・`validationResult`/`eventId` 指定可） |
+| GET | `/manage/events` | イベント一覧（短冊件数 `_count.tanzakus` 付き） |
 | POST | `/manage/events` | イベント作成 |
-| POST | `/manage/events/:id/activate` | イベントをアクティブ化 |
+| POST | `/manage/events/:id/activate` | イベントを排他的にアクティブ化（D1 batch でアトミック） |
 | POST | `/manage/events/deactivate-all` | 全イベントを無効化 |
+| PUT | `/manage/config` | フェスティバルモードの更新 |
 
 ---
 
-## 10. 技術スタック
+## 9. 技術スタック
 
-### フロントエンド (tanzaku-frontend-v2)
+### フロントエンド（tanzaku-frontend-v2）
 
-| カテゴリ | ライブラリ / ツール | バージョン |
-|----------|---------------------|------------|
-| フレームワーク | Next.js (App Router) | 15.3.1 |
-| UIライブラリ | React | 19.1.0 |
-| 言語 | TypeScript | 5.8.3 |
-| スタイリング | Panda CSS | 0.53.7 |
-| 状態管理 | Jotai | 2.12.5 |
-| フォーム | React Hook Form | 7.56.4 |
-| APIクライアント | openapi-fetch | 0.14.0 |
-| 型生成 | openapi-typescript | 7.8.0 |
-| アイコン | Tabler Icons | 3.33.0 |
-| QRコード | next-qrcode | 2.5.1 |
-| 分析 | Google Analytics | — |
-| Linter/Formatter | Biome | — |
-| デプロイ | Cloudflare Workers (OpenNext.js) | — |
-| ドメイン | tanzaku.mizphses.com | — |
+| 分類 | 採用技術 |
+|------|---------|
+| ビルド | Vite 8 |
+| UI | React 19 |
+| ルーティング | TanStack Router 1.x（ファイルベース・自動コード分割） |
+| スタイリング | Tailwind CSS 4（`@tailwindcss/vite`） |
+| 状態管理 | React Context（FestivalMode / AdminAuth）+ ローカルstate |
+| API通信 | openapi-fetch 0.14（公開API）/ fetch ラッパー（管理API） |
+| 型生成 | openapi-typescript 7 |
+| 描画 | Canvas 2D API |
+| QRコード | qrcode 1.5 |
+| テスト | Vitest 4（`environment: node` で純粋関数を検証） |
+| Lint / Format | Biome 1.9 |
+| 分析 | Google Analytics（gtag・SPA遷移時に手動 `page_view`） |
+| ホスティング | Cloudflare Workers Static Assets（`not_found_handling: single-page-application`） |
 
-### バックエンド (tanzakuv2)
+### バックエンド（tanzakuv2）
 
-| カテゴリ | ライブラリ / ツール | バージョン |
-|----------|---------------------|------------|
-| ランタイム | Cloudflare Workers | — |
-| フレームワーク | Hono | — |
-| ORM | Prisma (PrismaD1アダプター) | — |
-| データベース | Cloudflare D1 (SQLite) | — |
-| 認証(管理) | Basic認証 (Hono basicAuth) | — |
-| 認証(JWT) | JWT + Google OAuth (@hono/oauth-providers) | — |
-| パスワード | bcryptjs | — |
-| AI審査 | Cloudflare AI (Llama 3.3 70B fp8) | — |
-| API仕様 | OpenAPI 3.0 | — |
-| Linter/Formatter | Biome | — |
-| パッケージ管理 | pnpm | — |
+| 分類 | 採用技術 |
+|------|---------|
+| ランタイム | Cloudflare Workers |
+| フレームワーク | Hono 4 |
+| ORM | Drizzle ORM（`drizzle-orm/d1`） |
+| バリデーション | Zod 4 + `@hono/zod-validator` |
+| データベース | Cloudflare D1（SQLite） |
+| AI審査 | Workers AI（`@cf/meta/llama-4-scout-17b-16e-instruct`） |
+| 管理API認証 | Basic認証（Hono `basicAuth` / fail-closed） |
+| API仕様 | OpenAPI 3.0（`docs/openapi.yml` が正本） |
+| テスト | Vitest 4 + `@cloudflare/vitest-pool-workers`（workerd 上で実行・D1 はテスト毎にクリア） |
+| Lint / Format | Biome 1.9 |
+| パッケージ管理 | pnpm 10 |
 
 ---
 
-## 11. デプロイ構成
+## 10. CI / デプロイ構成
 
 ```mermaid
 graph LR
-    subgraph GitHub["GitHub"]
+    subgraph GH["GitHub"]
         FE_Repo["tanzaku-frontend-v2"]
         BE_Repo["tanzakuv2"]
+        CI_FE["CI: lint / format<br/>typecheck / test"]
+        CI_BE["CI: lint / format<br/>type-check / test"]
+        WF_FE["Deploy<br/>(workflow_dispatch)<br/>festival_mode を選択"]
+        WF_BE["Deploy & Release<br/>(workflow_dispatch)<br/>with_d1 を選択"]
     end
 
     subgraph CF["Cloudflare"]
-        CF_FE["Workers\ntanzaku.mizphses.com"]
-        CF_BE["Workers\ntanzakuv2.fuminori.workers.dev"]
-        D1[("D1\nTANZAKU-V2")]
-        CF_AI["Cloudflare AI"]
+        CF_FE["Workers (Static Assets)<br/>tanzaku.mizphses.com"]
+        CF_BE["Workers<br/>tanzakuv2.fuminori.workers.dev"]
+        D1[("D1 TANZAKU-V2")]
+        CF_AI["Workers AI"]
     end
 
-    FE_Repo -->|"pnpm build-opennextjs && deploy"| CF_FE
-    BE_Repo -->|"pnpm deploy"| CF_BE
+    FE_Repo --> CI_FE
+    BE_Repo --> CI_BE
+    FE_Repo --> WF_FE -->|"pnpm build → wrangler deploy"| CF_FE
+    BE_Repo --> WF_BE -->|"wrangler deploy"| CF_BE
+    WF_BE -.->|"with_d1=true のとき<br/>d1 migrations apply --remote"| D1
     CF_BE --- D1
     CF_BE --- CF_AI
     CF_FE <-->|"HTTPS"| CF_BE
 
-    style CF_FE fill:#dbeafe
-    style CF_BE fill:#fef3c7
-    style D1 fill:#d1fae5
-    style CF_AI fill:#ede9fe
+    style CF_FE fill:#dbeafe,color:#000
+    style CF_BE fill:#fef3c7,color:#000
+    style D1 fill:#d1fae5,color:#000
+    style CF_AI fill:#ede9fe,color:#000
+```
+
+### CI
+
+両リポジトリとも `main` への push / PR で実行されます。
+
+| ジョブ | 内容 |
+|--------|------|
+| lint | Biome lint |
+| format | Biome format チェック |
+| type-check | `tsc --noEmit` |
+| test | Vitest |
+
+バックエンドのCIは各ジョブで `pnpm gen`（`wrangler types`）を実行してから検証します。
+
+### デプロイ
+
+いずれも GitHub Actions の `workflow_dispatch`（手動実行）です。**wrangler の直叩きではなく Actions 経由で実行してください。**
+
+| リポジトリ | ワークフロー | 入力 | 内容 |
+|---|---|---|---|
+| tanzakuv2 | `Deploy & Release` | `with_d1`（既定 true） | Secrets を注入して `wrangler deploy` → 有効時は `d1 migrations apply --remote` → `vYYYY.MM.DD.HHmm` タグでRelease作成 |
+| tanzaku-frontend-v2 | `Deploy` | `festival_mode`（`tanabata` / `sakura`） | 選択値を `VITE_FESTIVAL_MODE` に渡して `pnpm build` → `wrangler deploy` → Release作成 |
+
+> フロントエンドの `festival_mode` はあくまで**ビルド時の初期値**です。運用中の切り替えは管理画面（`PUT /manage/config`）から行い、再デプロイは不要です。
+
+---
+
+## 11. 環境変数・Secrets
+
+### フロントエンド（ビルド時に埋め込み）
+
+`.env.development` / `.env.production` がリポジトリにコミットされています。
+
+| 変数名 | 説明 |
+|--------|------|
+| `VITE_TANZ_BACKEND` | バックエンドAPIのベースURL |
+| `VITE_GA_ID` | Google Analytics 測定ID（`index.html` の `%VITE_GA_ID%` に展開） |
+| `VITE_FESTIVAL_MODE` | フェスティバルモードの初期値（`tanabata` / `sakura`） |
+| `VITE_BASEURL` | 現在コード上では未参照（過去の共有URL生成で使用していた残り） |
+
+### バックエンド
+
+| 名前 | 種別 | 説明 |
+|------|------|------|
+| `DB` | Binding | Cloudflare D1（`TANZAKU-V2`） |
+| `AI` | Binding | Workers AI |
+| `FRONTEND_BASEURL` | Secret | フロントエンドのベースURL（`GET /manage` のリダイレクト先） |
+| `ADMIN_ID` | Secret | 管理APIのBasic認証ユーザー名 |
+| `ADMIN_PWD` | Secret | 管理APIのBasic認証パスワード |
+
+Bindings は `wrangler.jsonc`、Secrets は GitHub Actions の Secrets から `wrangler-action` 経由で注入されます。ローカル開発では `.dev.vars`（`.dev.vars.example` をコピー）に設定します。
+
+> `ADMIN_ID` / `ADMIN_PWD` が未設定の場合、既定の資格情報へフォールバックせず `/manage/*` が 500 を返します（fail-closed）。
+
+---
+
+## 12. ローカル開発
+
+```sh
+# バックエンド（tanzakuv2）
+pnpm install
+cp .dev.vars.example .dev.vars   # ADMIN_ID / ADMIN_PWD / FRONTEND_BASEURL を設定
+pnpm migrate:dev                 # ローカル D1 にマイグレーション適用
+pnpm dev                         # wrangler dev（http://localhost:8787）
+
+pnpm test        # vitest（workerd 上で実行）
+pnpm type-check
+pnpm check       # biome lint + format
+pnpm gen         # wrangler types（CloudflareBindings 再生成）
+```
+
+```sh
+# フロントエンド（tanzaku-frontend-v2）
+pnpm install
+pnpm dev         # vite
+pnpm gen:api     # openapi.yml から型生成
 ```
 
 ---
 
-## 12. 環境変数
+## 13. 関連ドキュメント
 
-### フロントエンド
-
-| 変数名 | 説明 |
-|--------|------|
-| `NEXT_PUBLIC_TANZ_BACKEND` | バックエンドAPIのベースURL |
-| `NEXT_PUBLIC_GA_ID` | Google Analytics 計測ID（任意） |
-| `NEXT_PUBLIC_FESTIVAL_MODE` | `tanabata` または `sakura`（フェスティバル切替） |
-
-### バックエンド（Cloudflare Workers Bindings）
-
-| Binding / 変数名 | 説明 |
-|-----------------|------|
-| `DB` | Cloudflare D1 Binding |
-| `AI` | Cloudflare AI Binding |
-| `JWT_SECRET` | JWT署名シークレット |
-| `FRONTEND_BASEURL` | フロントエンドのベースURL（OAuth リダイレクト用） |
-| `ADMIN_ID` | 管理画面Basic認証のユーザー名 |
-| `ADMIN_PWD` | 管理画面Basic認証のパスワード |
+| ドキュメント | 内容 |
+|---|---|
+| `README.md` | バックエンドのアーキテクチャ・開発手順 |
+| `docs/openapi.yml` | API仕様の正本（フロントエンドの型生成元） |
+| `docs/ERD.md` | DBスキーマ |
+| `docs/event-design.md` | イベント管理機能の当初設計案（実装済み・記述はPrisma時代のもの） |
+| フロント `README.md` | フロントエンドの機能・環境変数・スクリプト |
+| フロント `architecture.md` | フロントエンドの詳細構成図・描画／レイアウトの設計判断 |

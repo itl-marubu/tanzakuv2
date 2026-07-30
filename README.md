@@ -20,14 +20,19 @@ src/
 ├── middleware/basicAuth.ts   # 管理 API 用 Basic 認証(ADMIN_ID / ADMIN_PWD、未設定時は500)
 ├── routes/                   # HTTP 層(zod バリデーション・ステータス変換)
 │   ├── tanzaku.route.ts      # 公開 API
+│   ├── config.route.ts       # 公開 API(フェスティバルモード取得)
 │   └── manage.route.ts       # 管理 JSON API(UI はフロントの /admin)
 ├── schemas/                  # zod スキーマ
 ├── services/                 # ビジネスロジック
 │   ├── tanzaku.service.ts    # 投稿・表示ローテーション・一括編集
 │   ├── moderation.service.ts # Workers AI による適切性検証(注入可能)
-│   └── event.service.ts      # イベント管理(排他的アクティブ化)
+│   ├── event.service.ts      # イベント管理(排他的アクティブ化)
+│   └── config.service.ts     # ランタイム設定(AppConfig / festivalMode)
 ├── repositories/             # DB アクセス層
-└── lib/                      # 日時変換 / ID 生成
+└── lib/
+    ├── rotation.ts           # ステートレス・ローテーションの純粋関数
+    ├── dates.ts              # DATETIME(TEXT)の読み書き
+    └── id.ts                 # UUID 生成
 ```
 
 ### DB の日時・ID の取り決め
@@ -58,6 +63,21 @@ pnpm gen           # wrangler types(CloudflareBindings 再生成)
 
 管理 API(`/manage/*`)は Basic 認証(`ADMIN_ID` / `ADMIN_PWD`)。
 管理画面 UI はフロントエンドの `/admin` に移設済みで、`GET /manage` はそこへリダイレクトする。
+
+### 表示ローテーション
+
+`GET /tanzaku/client` は DB 書き込みゼロの決定的な計算。「直近60秒の新着(最大 `limit-2` 件)」+
+「残り枠を `window`/`seed` で決まる窓から巡回」で構成される(`src/lib/rotation.ts`)。
+カーソルはクライアントが持つため、`/tree` のリロードが「次のバッチへ進める」操作になる。
+
+## ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| `docs/system-overview.md` | システム全体の説明書(構成図・データフロー・デプロイ) |
+| `docs/openapi.yml` | API 仕様の正本 |
+| `docs/ERD.md` | DB スキーマ |
+| `docs/event-design.md` | イベント管理機能の当初設計案(アーカイブ) |
 
 ## デプロイ
 
