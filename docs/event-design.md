@@ -1,5 +1,16 @@
 # イベント管理機能 設計案
 
+> **本書は実装前の設計案（アーカイブ）です。** 記載のスキーマ定義は Prisma 時代のもので、
+> 現在の実装とは表記が異なります。現行仕様は以下を参照してください。
+>
+> - スキーマ: `docs/ERD.md` / `src/db/schema.ts`（Drizzle）/ `migrations/0004_event.sql`
+> - API: `docs/openapi.yml`
+> - システム全体: `docs/system-overview.md`
+>
+> 「推奨案（Event テーブル）」はそのまま採用され、`GET/POST /manage/events`、
+> `POST /manage/events/:id/activate` に加えて `POST /manage/events/deactivate-all` が実装済みです。
+> 既存データは `eventId = null`（レガシー扱い）のまま運用しています。
+
 ## 概要
 
 今後の複数イベント対応に向けて、既存の短冊データをアーカイブし、
