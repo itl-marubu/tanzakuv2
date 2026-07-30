@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../src/db/client";
 import { event, tanzaku } from "../src/db/schema";
 import { nowForDb } from "../src/lib/dates";
+import {
+  FRESH_WINDOW_MS,
+  hashSeed,
+  rotationOffset,
+  splitWindow,
+  windowIndexFromClock
+} from "../src/lib/rotation";
 import type { ModerationAi } from "../src/services/moderation.service";
 import { TanzakuService } from "../src/services/tanzaku.service";
 
@@ -47,7 +54,6 @@ describe("createTanzaku", () => {
     expect(created.content).toBe("テスト");
     expect(created.userName).toBe("太郎");
     expect(created.validationResult).toBe(0);
-    expect(created.visiblePattern).toBe(true);
     expect(created.logicalDelete).toBe(false);
     expect(created.eventId).toBeNull();
     // API 互換: createdAt は ISO 8601(Z)
@@ -112,63 +118,341 @@ describe("getTanzakuById", () => {
   });
 });
 
-describe("getClientTanzaku(ローテーション)", () => {
-  it("createdAt 降順で limit 件返し、返した行を非表示にする", async () => {
-    await seedTanzaku("tz-old", { createdAt: "2025-06-21T10:00:00.000Z" });
-    await seedTanzaku("tz-mid", { createdAt: "2025-06-22T10:00:00.000Z" });
-    await seedTanzaku("tz-new", { createdAt: "2025-06-23T10:00:00.000Z" });
+describe("getClientTanzaku(ステートレス・ローテーション)", () => {
+  // 固定の基準時刻(now を明示注入してテストを決定的にする)
+  const NOW = new Date("2025-06-23T10:05:00.000Z");
+  const iso = (offsetMs: number) =>
+    new Date(NOW.getTime() + offsetMs).toISOString();
 
-    const first = await service().getClientTanzaku(2);
-    expect(first.map((t) => t.id)).toEqual(["tz-new", "tz-mid"]);
+  // 新着窓(直近60秒)の外側(=巡回プール対象) / 内側(=新着対象)の基準オフセット
+  const OLD = -70_000;
+  const FRESH = -1_000;
 
-    // 2回目: 残り1件のみ
-    const second = await service().getClientTanzaku(2);
-    expect(second.map((t) => t.id)).toEqual(["tz-old"]);
+  it("同一 limit/window/seed の呼び出しは常に同一結果を返す(GETに副作用なし)", async () => {
+    for (let i = 0; i < 5; i++) {
+      await seedTanzaku(`tz-${i}`, { createdAt: iso(OLD - i * 1000) });
+    }
+    const call = () =>
+      service().getClientTanzaku({
+        limit: 3,
+        window: 4,
+        seed: "repeat",
+        now: NOW
+      });
 
-    // 3回目: 表示可能が尽きたのでリセットされ再び先頭から
-    const third = await service().getClientTanzaku(2);
-    expect(third.map((t) => t.id)).toEqual(["tz-new", "tz-mid"]);
+    const first = (await call()).map((t) => t.id);
+    const second = (await call()).map((t) => t.id);
+    const third = (await call()).map((t) => t.id);
+
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+  });
+
+  it("window+1 で巡回セグメントが入れ替わり、一周後(同じ位相)は同一結果に戻る(ラップ)", async () => {
+    // 巡回プール6件(古い順 tz-0 < tz-1 < ... < tz-5)。
+    // limit=2・全件旧データ(新着なし)なので remaining=2=slotsPerWindow。
+    // poolCount(6) は slotsPerWindow(2) の倍数なので window+3 で位相が一致する。
+    for (let i = 0; i < 6; i++) {
+      await seedTanzaku(`tz-${i}`, { createdAt: iso(OLD + i * 1000) });
+    }
+    const at = (window: number) =>
+      service()
+        .getClientTanzaku({ limit: 2, window, seed: "wrap-seed", now: NOW })
+        .then((rows) => rows.map((t) => t.id));
+
+    const w0 = await at(0);
+    const w1 = await at(1);
+    const w3 = await at(3);
+
+    expect(w1).not.toEqual(w0);
+    expect(w3).toEqual(w0);
+  });
+
+  it("seed を変えると同一 window でも巡回セグメントが入れ替わる", async () => {
+    for (let i = 0; i < 6; i++) {
+      await seedTanzaku(`tz-${i}`, { createdAt: iso(OLD + i * 1000) });
+    }
+    const withSeed = (seed: string) =>
+      service()
+        .getClientTanzaku({ limit: 2, window: 0, seed, now: NOW })
+        .then((rows) => rows.map((t) => t.id));
+
+    // hashSeed("seed-a") % 6 !== hashSeed("seed-b") % 6 であることを確認済み
+    const a = await withSeed("seed-a");
+    const b = await withSeed("seed-b");
+    expect(a).not.toEqual(b);
+  });
+
+  it("新着(直近60秒)は window/seed によらず必ず先頭に出る", async () => {
+    await seedTanzaku("tz-fresh", { createdAt: iso(FRESH) });
+    for (let i = 0; i < 3; i++) {
+      await seedTanzaku(`tz-pool-${i}`, { createdAt: iso(OLD + i * 1000) });
+    }
+
+    const a = await service().getClientTanzaku({
+      limit: 5,
+      window: 0,
+      seed: "x",
+      now: NOW
+    });
+    const b = await service().getClientTanzaku({
+      limit: 5,
+      window: 99,
+      seed: "y",
+      now: NOW
+    });
+
+    expect(a[0]?.id).toBe("tz-fresh");
+    expect(b[0]?.id).toBe("tz-fresh");
+  });
+
+  it("新着は limit-2 件を超えると createdAt 新しい順にトリミングされ、溢れは巡回待ちになる", async () => {
+    // limit=5 → 新着枠は3。新着5件のうち新しい3件のみ新着セグメントに採用される
+    for (let i = 0; i < 5; i++) {
+      // i が大きいほど新しい
+      await seedTanzaku(`tz-fresh-${i}`, { createdAt: iso(FRESH + i * 100) });
+    }
+    await seedTanzaku("tz-pool-a", { createdAt: iso(OLD) });
+    await seedTanzaku("tz-pool-b", { createdAt: iso(OLD - 1000) });
+
+    const result = await service().getClientTanzaku({
+      limit: 5,
+      window: 0,
+      seed: "",
+      now: NOW
+    });
+
+    expect(result).toHaveLength(5);
+    expect(result.slice(0, 3).map((t) => t.id)).toEqual([
+      "tz-fresh-4",
+      "tz-fresh-3",
+      "tz-fresh-2"
+    ]);
+    // 溢れた新着2件(tz-fresh-0/1)は新着として採用されず、
+    // 巡回プール(tz-pool-a/b と合わせた計4件)へ回って重複なく残り2枠を埋める
+    const overflowed = result.slice(3).map((t) => t.id);
+    const poolCandidates = new Set([
+      "tz-pool-a",
+      "tz-pool-b",
+      "tz-fresh-0",
+      "tz-fresh-1"
+    ]);
+    for (const id of overflowed) {
+      expect(poolCandidates.has(id)).toBe(true);
+    }
+    expect(new Set(overflowed).size).toBe(2);
+  });
+
+  it("プールが残り枠数より少なければ全件・重複なしで返す", async () => {
+    await seedTanzaku("tz-p1", { createdAt: iso(OLD) });
+    await seedTanzaku("tz-p2", { createdAt: iso(OLD - 1000) });
+
+    // 新着なし・プール2件のみ。limit=10 → remaining=8 > poolCount=2
+    const result = await service().getClientTanzaku({
+      limit: 10,
+      window: 5,
+      seed: "s",
+      now: NOW
+    });
+
+    const ids = result.map((t) => t.id);
+    expect([...ids].sort()).toEqual(["tz-p1", "tz-p2"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("limit<=2 のときは新着枠が0になり、直近の投稿も巡回セグメント扱いになる", async () => {
+    await seedTanzaku("tz-a", { createdAt: iso(OLD) });
+    await seedTanzaku("tz-b", { createdAt: iso(OLD + 1000) });
+    await seedTanzaku("tz-newest", { createdAt: iso(FRESH) });
+
+    // limit=10 なら新着枠があるので tz-newest が新着セグメントの先頭に来る
+    const withFreshSlot = await service().getClientTanzaku({
+      limit: 10,
+      window: 0,
+      seed: "",
+      now: NOW
+    });
+    expect(withFreshSlot[0]?.id).toBe("tz-newest");
+
+    // limit=2 なら新着枠は0。tz-newest も巡回プールに含まれ、
+    // ASC 順プール(tz-a, tz-b, tz-newest)上の rotationOffset/splitWindow が
+    // 決める位置のものだけが返る(新着として先頭固定はされない)
+    const ascIds = ["tz-a", "tz-b", "tz-newest"];
+    const poolCount = ascIds.length;
+    const remaining = 2;
+    const offset = rotationOffset(0, hashSeed(""), remaining, poolCount);
+    const expectedIds = splitWindow(offset, remaining, poolCount).flatMap(
+      (part) =>
+        Array.from({ length: part.limit }, (_, i) => ascIds[part.offset + i])
+    );
+
+    const noFreshSlot = await service().getClientTanzaku({
+      limit: 2,
+      window: 0,
+      seed: "",
+      now: NOW
+    });
+    expect(noFreshSlot.map((t) => t.id)).toEqual(expectedIds);
+  });
+
+  it("window/seed 未指定時はサーバー壁時計から window を導出する", async () => {
+    for (let i = 0; i < 6; i++) {
+      await seedTanzaku(`tz-${i}`, { createdAt: iso(OLD + i * 1000) });
+    }
+    // ちょうど FRESH_WINDOW_MS(60秒)分ずらすと windowIndexFromClock が+1される
+    const laterNow = new Date(NOW.getTime() + FRESH_WINDOW_MS);
+
+    const implicit0 = await service().getClientTanzaku({
+      limit: 2,
+      seed: "clock",
+      now: NOW
+    });
+    const implicit1 = await service().getClientTanzaku({
+      limit: 2,
+      seed: "clock",
+      now: laterNow
+    });
+    const explicit0 = await service().getClientTanzaku({
+      limit: 2,
+      window: windowIndexFromClock(NOW),
+      seed: "clock",
+      now: NOW
+    });
+    const explicit1 = await service().getClientTanzaku({
+      limit: 2,
+      window: windowIndexFromClock(laterNow),
+      seed: "clock",
+      now: laterNow
+    });
+
+    expect(implicit0.map((t) => t.id)).toEqual(explicit0.map((t) => t.id));
+    expect(implicit1.map((t) => t.id)).toEqual(explicit1.map((t) => t.id));
   });
 
   it("不適切(1)・論理削除済みはローテーションに含めない", async () => {
-    await seedTanzaku("tz-ok");
-    await seedTanzaku("tz-ng", { validationResult: 1 });
-    await seedTanzaku("tz-del", { logicalDelete: true });
+    await seedTanzaku("tz-ok", { createdAt: iso(OLD) });
+    await seedTanzaku("tz-ng", { createdAt: iso(OLD), validationResult: 1 });
+    await seedTanzaku("tz-del", { createdAt: iso(OLD), logicalDelete: true });
 
-    const result = await service().getClientTanzaku(10);
+    const result = await service().getClientTanzaku({ limit: 10, now: NOW });
     expect(result.map((t) => t.id)).toEqual(["tz-ok"]);
   });
 
   it("アクティブイベントがあればそのスコープのみ返す", async () => {
     await seedEvent("ev-active", true);
     await seedEvent("ev-other", false);
-    await seedTanzaku("tz-active", { eventId: "ev-active" });
-    await seedTanzaku("tz-other", { eventId: "ev-other" });
-    await seedTanzaku("tz-legacy", { eventId: null });
+    await seedTanzaku("tz-active", {
+      eventId: "ev-active",
+      createdAt: iso(OLD)
+    });
+    await seedTanzaku("tz-other", {
+      eventId: "ev-other",
+      createdAt: iso(OLD)
+    });
+    await seedTanzaku("tz-legacy", { eventId: null, createdAt: iso(OLD) });
 
-    const result = await service().getClientTanzaku(10);
+    const result = await service().getClientTanzaku({ limit: 10, now: NOW });
     expect(result.map((t) => t.id)).toEqual(["tz-active"]);
   });
 
   it("アクティブイベントがなければレガシー(eventId=null)のみ返す", async () => {
     await seedEvent("ev-inactive", false);
-    await seedTanzaku("tz-event", { eventId: "ev-inactive" });
-    await seedTanzaku("tz-legacy", { eventId: null });
+    await seedTanzaku("tz-event", {
+      eventId: "ev-inactive",
+      createdAt: iso(OLD)
+    });
+    await seedTanzaku("tz-legacy", { eventId: null, createdAt: iso(OLD) });
 
-    const result = await service().getClientTanzaku(10);
+    const result = await service().getClientTanzaku({ limit: 10, now: NOW });
     expect(result.map((t) => t.id)).toEqual(["tz-legacy"]);
   });
 
   it("limit は 1〜30 に clamp される", async () => {
     for (let i = 0; i < 35; i++) {
-      await seedTanzaku(`tz-${String(i).padStart(2, "0")}`);
+      await seedTanzaku(`tz-${String(i).padStart(2, "0")}`, {
+        createdAt: iso(OLD - i * 1000)
+      });
     }
-    const result = await service().getClientTanzaku(100);
+    const result = await service().getClientTanzaku({ limit: 100, now: NOW });
     expect(result.length).toBe(30);
   });
 
   it("対象が1件もなければ空配列", async () => {
-    expect(await service().getClientTanzaku(10)).toEqual([]);
+    expect(await service().getClientTanzaku({ now: NOW })).toEqual([]);
+  });
+
+  describe("createdAt混在形式(旧SQLite形式 + ISO 8601)", () => {
+    // 旧SQLite形式("YYYY-MM-DD HH:MM:SS")の createdAt を生成するヘルパー。
+    // lib/dates.ts の SQLITE_DATETIME_RE にマッチする形式(区切り文字が ' ')にする。
+    const legacy = (offsetMs: number) =>
+      new Date(NOW.getTime() + offsetMs)
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
+
+    it("旧形式(過去日付)は新着セグメントに誤って入らず、ISO形式の直近行は正しく入る", async () => {
+      // findFresh は gte(createdAt, sinceISO) というテキスト比較で判定している。
+      // "YYYY-MM-DD HH:MM:SS"(区切りが ' '=0x20)は "YYYY-MM-DDTHH:MM:SS.sssZ"
+      // (区切りが 'T'=0x54)より文字列として常に小さいため、旧形式の行は
+      // 実際の日時に関わらず gte 条件を満たさない=新着セグメントには構造的に
+      // 入り得ない(過去日付であれば安全側に倒れる、という性質を明示的に検証する)。
+      await seedTanzaku("tz-legacy-old", { createdAt: legacy(OLD) });
+      // ISO形式の直近行は通常通り新着セグメントの先頭に来る
+      await seedTanzaku("tz-iso-fresh", { createdAt: iso(FRESH) });
+
+      const result = await service().getClientTanzaku({
+        limit: 10,
+        window: 0,
+        seed: "mixed-fresh",
+        now: NOW
+      });
+      const ids = result.map((t) => t.id);
+
+      expect(ids[0]).toBe("tz-iso-fresh");
+      // 旧形式行も消えるわけではなく、巡回セグメント側で全件性は保たれる
+      expect(ids).toContain("tz-legacy-old");
+      expect(ids.indexOf("tz-legacy-old")).toBeGreaterThan(0);
+    });
+
+    it("巡回セグメントは旧形式/ISO混在プールでも重複なく全件をカバーする", async () => {
+      // プール6件(旧形式3件 + ISO形式3件、いずれも新着window外の過去日付)。
+      // createdAt ASC はテキスト比較のため、旧形式('区切り)とISO形式('T'区切り)が
+      // 混在すると実際の時系列順とは異なる並びになり得る(旧形式は常にISO形式より
+      // 文字列として小さいため、実際の新旧に関係なく旧形式が先に並ぶ)。
+      // これは仕様として許容する: 巡回ローテーションに必要なのは「同一window/seedで
+      // 決定的」「複数窓の合算で重複なく全件が出現する」ことであり、厳密な時系列順
+      // ではない(消費型だった旧実装も厳密な時系列順は保証していなかった点と同等)。
+      const legacyIds = ["tz-legacy-0", "tz-legacy-1", "tz-legacy-2"];
+      const isoIds = ["tz-iso-0", "tz-iso-1", "tz-iso-2"];
+      for (const [i, id] of legacyIds.entries()) {
+        await seedTanzaku(id, { createdAt: legacy(OLD - i * 1000) });
+      }
+      for (const [i, id] of isoIds.entries()) {
+        await seedTanzaku(id, { createdAt: iso(OLD - (i + 10) * 1000) });
+      }
+      const allIds = new Set([...legacyIds, ...isoIds]);
+
+      const at = (window: number) =>
+        service()
+          .getClientTanzaku({
+            limit: 2,
+            window,
+            seed: "mixed-coverage",
+            now: NOW
+          })
+          .then((rows) => rows.map((t) => t.id));
+
+      // 決定性: 同一 window/seed の呼び出しは常に同一結果
+      const w0First = await at(0);
+      const w0Second = await at(0);
+      expect(w0Second).toEqual(w0First);
+
+      // 全件性: poolCount(6) は slotsPerWindow(2=remaining) の倍数なので、
+      // window 0〜2 の3窓の合算でちょうど全件・重複なしをカバーする
+      const covered = [...(await at(0)), ...(await at(1)), ...(await at(2))];
+      expect(new Set(covered)).toEqual(allIds);
+      expect(covered.length).toBe(allIds.size);
+    });
   });
 });
 
