@@ -3,41 +3,42 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
-    "format:js": "biome format --write .",
-    "format:prisma": "prisma format",
-    "format": "run-p format:*",
+    "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint --write .",
     "lint:check": "biome lint .",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "check": "biome check .",
     "fix": "biome check --write .",
     "gen": "run-p gen:*",
     "gen:cf-types": "wrangler types --env-interface CloudflareBindings",
-    "gen:prisma-client": "prisma generate",
     "migration:create": "wrangler d1 migrations create DB",
-    "migration:write-init": "prisma migrate diff --script --from-empty --to-schema-datamodel ./prisma/schema.prisma --output",
-    "migration:write": "prisma migrate diff --script --from-local-d1 --to-schema-datamodel ./prisma/schema.prisma --output",
     "migrate:dev": "wrangler d1 migrations apply DB --local",
     "migrate:remote": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
-    "@hono/oauth-providers": "^0.7.1",
-    "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/adapter-d1": "^6.8.2",
-    "@prisma/client": "^6.8.2",
-    "bcryptjs": "^3.0.2",
-    "hono": "^4.7.9",
-    "jose": "^6.0.11",
-    "prisma": "^6.8.2",
-    "prisma-markdown": "^2.0.0"
+    "@hono/zod-validator": "^0.8.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.27",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@cloudflare/workers-types": "^4.20250517.0",
+    "@cloudflare/vitest-pool-workers": "^0.18.0",
+    "@cloudflare/workers-types": "^4.20260628.1",
     "@types/node": "^24.0.7",
     "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
-    "wrangler": "^4.15.2"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.105.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "shell-quote@>=1.1.0 <=1.8.3": ">=1.8.4",
+      "defu@<=6.1.4": ">=6.1.5",
+      "picomatch@>=4.0.0 <4.0.4": ">=4.0.4"
+    }
   }
 }

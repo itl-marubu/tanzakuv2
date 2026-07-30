@@ -19,13 +19,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "pnpm"
@@ -33,23 +33,15 @@ jobs:
         run: pnpm install
 
       - name: Deploy
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           secrets: |
-            JWT_SECRET
-            SALT
-            GOOGLE_ID
-            GOOGLE_SECRET
             FRONTEND_BASEURL
             ADMIN_ID
             ADMIN_PWD
         env:
-          JWT_SECRET: ${{ secrets.TOKEN_KEY }}
-          SALT: ${{ secrets.SALT }}
-          GOOGLE_ID: ${{ secrets.GOOGLE_ID }}
-          GOOGLE_SECRET: ${{ secrets.GOOGLE_SECRET }}
           FRONTEND_BASEURL: ${{ secrets.FRONTEND_BASEURL }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           ADMIN_PWD: ${{ secrets.ADMIN_PWD }}
@@ -58,13 +50,13 @@ jobs:
     name: D1 Deploy
     if: ${{ github.event.inputs.with_d1 == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "pnpm"
@@ -72,7 +64,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - uses: cloudflare/wrangler-action@v3
+      - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -85,7 +77,7 @@ jobs:
       release_tag: ${{ steps.release_tag.outputs.VERSION }}
     needs: build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Generate release tag
         id: release_tag

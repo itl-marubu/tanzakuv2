@@ -1,210 +1,201 @@
-import { PrismaD1 } from "@prisma/adapter-d1";
-import { PrismaClient } from "../generated/prisma";
+import { createDb } from "../db/client";
+import type { TanzakuRow } from "../db/schema";
+import { dateForDb, nowForDb, toApiDate } from "../lib/dates";
+import { newUuid } from "../lib/id";
+import {
+  FRESH_RESERVED_SLOTS,
+  FRESH_WINDOW_MS,
+  hashSeed,
+  rotationOffset,
+  splitWindow,
+  windowIndexFromClock
+} from "../lib/rotation";
+import { EventRepository } from "../repositories/event.repository";
+import {
+  TanzakuRepository,
+  type TanzakuWithEvent
+} from "../repositories/tanzaku.repository";
+import {
+  type ModerationAi,
+  VALIDATION_NG,
+  VALIDATION_OK,
+  validateTanzaku
+} from "./moderation.service";
 
-interface AIResponse {
-  response: {
-    result: number;
-  };
-}
+// API レスポンス形(旧 Prisma + c.json と同一): createdAt は ISO 8601(Z)
+const serialize = <T extends TanzakuRow>(row: T) => ({
+  ...row,
+  createdAt: toApiDate(row.createdAt)
+});
 
-const validateTanzaku = async (ai: Ai, text: string) => {
-  const result = (await ai.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-    prompt: `あなたは校閲のプロフェッショナルです。ユーザーは七夕の短冊プロジェクトにいくつかのメッセージを投稿しています。それらのメッセージを校閲して、明らかに不適切であれば1と、適切であれば0と返してください。\n適切かどうかの基準は、公序良俗に反したことを言っているかどうかです。\n例: {\n  user: "楽しい七夕です!",\n  result: 0\n},{\n  user: "爆発しそうなくらい楽しい",\n  result: 0\n},{\n  user: "A先生キショい",\n  result: 1\n},{\n  user: "蓮舫蓮舫蓮舫蓮舫",\n  result: 1\n},{\n  user: "大学の自治を守ろう",\n  result: 0\n},{\n  user: "美味しいカレーが食べたい",\n  result: 0\n},{\n  user: "中央大学を爆破する",\n  result: 1\n},\nメッセージ: ${text}`,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        type: "object",
-        properties: {
-          result: {
-            type: "number",
-            enum: [0, 1]
-          }
-        }
-      }
-    }
-  })) as unknown as AIResponse;
-
-  if (
-    !result ||
-    typeof result !== "object" ||
-    !("response" in result) ||
-    typeof result.response !== "object" ||
-    !("result" in result.response) ||
-    typeof result.response.result !== "number"
-  ) {
-    console.error("Invalid AI Response:", result);
-    throw new Error("Invalid response from AI");
-  }
-
-  try {
-    const parsedResponse = result.response;
-
-    if (![0, 1].includes(parsedResponse.result)) {
-      console.error("Invalid Validation Result:", parsedResponse);
-      throw new Error("Invalid validation result");
-    }
-
-    return parsedResponse.result;
-  } catch (error) {
-    console.error("JSON Parse Error:", error);
-    throw new Error("Failed to parse AI response");
-  }
-};
+export type TanzakuEditOperation =
+  | { id: string; operation: "delete" }
+  | { id: string; operation: "hardDelete" }
+  | {
+      id: string;
+      operation: "update";
+      content?: string;
+      userName?: string;
+      validationResult?: number;
+      eventId?: string | null;
+    };
 
 export class TanzakuService {
-  private prisma: PrismaClient;
+  private readonly tanzakus: TanzakuRepository;
+  private readonly events: EventRepository;
 
   constructor(db: D1Database) {
-    const adapter = new PrismaD1(db);
-    this.prisma = new PrismaClient({ adapter });
+    const client = createDb(db);
+    this.tanzakus = new TanzakuRepository(client);
+    this.events = new EventRepository(client);
   }
 
   async createTanzaku(
     data: { content: string; userName: string },
-    ai: Ai | null = null
+    ai: ModerationAi | null = null
   ) {
     if (data.content.length > 14) {
       throw new Error("メッセージは14文字以内で入力してください");
     }
 
-    let validationResult = 0; // デフォルトは適切
+    let validationResult = VALIDATION_OK; // デフォルトは適切
     if (ai) {
-      validationResult = await validateTanzaku(
-        ai,
-        `${data.content}${data.userName}`
-      );
+      try {
+        validationResult = await validateTanzaku(
+          ai,
+          `${data.content}${data.userName}`
+        );
+      } catch (error) {
+        // 検証が失敗しても投稿自体は通す(500 で止めない)。ただし安全側に倒し、
+        // 未検証のコンテンツがウォールに出ないよう非表示(1)で保存する。
+        // 正当な投稿が巻き込まれた場合は管理画面で表示(0)に直せる。
+        console.error(
+          "Validation failed; saving tanzaku as hidden (1):",
+          error
+        );
+        validationResult = VALIDATION_NG;
+      }
     }
 
-    const activeEvent = await this.prisma.event.findFirst({
-      where: { isActive: true }
-    });
+    // 投稿はアクティブイベントに紐付く。なければレガシー(null)
+    const activeEvent = await this.events.findActive();
 
-    return await this.prisma.tanzaku.create({
-      data: {
-        ...data,
-        validationResult,
-        eventId: activeEvent?.id ?? null
-      }
+    const created = await this.tanzakus.insert({
+      id: newUuid(),
+      content: data.content,
+      userName: data.userName,
+      validationResult,
+      createdAt: nowForDb(),
+      eventId: activeEvent?.id ?? null
     });
+    return serialize(created);
   }
 
   async getTanzakuById(id: string) {
-    return await this.prisma.tanzaku.findUnique({
-      where: { id }
-    });
+    const row = await this.tanzakus.findById(id);
+    return row ? serialize(row) : null;
   }
 
-  async getClientTanzaku(limit = 10) {
-    const safeLimit = Math.min(30, Math.max(1, Math.floor(limit)));
-    const activeEvent = await this.prisma.event.findFirst({
-      where: { isActive: true }
-    });
-    const eventFilter = { eventId: activeEvent?.id ?? null };
+  /**
+   * ウォール表示用のステートレス・ローテーション取得(DB書き込みゼロ)。
+   *
+   * - 新着セグメント: 直近60秒(FRESH_WINDOW_MS)以内に作成された表示可能な短冊を
+   *   新しい順に最大 `limit - FRESH_RESERVED_SLOTS` 件。window/seed に非依存
+   *   (サーバー時刻 `now` 基準)なので、リロード連打でも同じ新着が先頭に出る。
+   *   ただし60秒以内の投稿がこの枠を超えた場合、溢れた分(古い方)は新着として
+   *   採用されず巡回セグメントの母集団へ回る。「投稿直後は必ず出る」ではなく
+   *   「直近 `limit - FRESH_RESERVED_SLOTS` 件に入っていれば出る」が正しい保証
+   * - 巡回セグメント: 残り枠を、新着以外の表示可能な短冊の安定順序リスト
+   *   (createdAt ASC, id ASC)上の窓で充填する。窓の位置は
+   *   `offset = (window × 残り枠数 + fnv1a(seed)) mod poolCount` で決定的に求め、
+   *   末尾に達したら先頭へラップ(2回に分けて取得)する
+   * - window/seed が指定されなければサーバー壁時計から window を導出する
+   *   (カーソル未対応の旧フロント互換のデフォルト)
+   *
+   * `now` はテスト用の注入ポイント(省略時は呼び出し時刻)。
+   */
+  async getClientTanzaku(
+    params: {
+      limit?: number;
+      window?: number;
+      seed?: string;
+      now?: Date;
+    } = {}
+  ) {
+    const safeLimit = Math.min(30, Math.max(1, Math.floor(params.limit ?? 10)));
+    const now = params.now ?? new Date();
 
-    const checkexistance = await this.prisma.tanzaku.findMany({
-      take: 1,
-      where: {
-        visiblePattern: true,
-        validationResult: 0,
-        logicalDelete: false,
-        ...eventFilter
-      }
-    });
-    if (checkexistance.length === 0) {
-      await this.prisma.tanzaku.updateMany({
-        where: {
-          visiblePattern: false,
-          ...eventFilter
-        },
-        data: { visiblePattern: true }
-      });
+    const activeEvent = await this.events.findActive();
+    const scopeEventId = activeEvent?.id ?? null;
+
+    const freshMax = Math.max(0, safeLimit - FRESH_RESERVED_SLOTS);
+    const sinceDb =
+      freshMax > 0
+        ? dateForDb(new Date(now.getTime() - FRESH_WINDOW_MS))
+        : null;
+    const fresh =
+      freshMax > 0 && sinceDb !== null
+        ? await this.tanzakus.findFresh(scopeEventId, sinceDb, freshMax)
+        : [];
+
+    const remaining = safeLimit - fresh.length;
+    if (remaining <= 0) {
+      return fresh.map(serialize);
     }
 
-    const result = await this.prisma.tanzaku.findMany({
-      take: safeLimit,
-      orderBy: {
-        createdAt: "desc"
-      },
-      where: {
-        visiblePattern: true,
-        validationResult: 0,
-        logicalDelete: false,
-        ...eventFilter
-      }
-    });
-
-    if (result.length === 0) {
-      return [];
+    const excludeIds = fresh.map((r) => r.id);
+    const poolCount = await this.tanzakus.countRotationPool(
+      scopeEventId,
+      excludeIds
+    );
+    if (poolCount === 0) {
+      return fresh.map(serialize);
     }
 
-    await this.prisma.tanzaku.updateMany({
-      where: {
-        id: { in: result.map((r) => r.id) }
-      },
-      data: { visiblePattern: false }
-    });
+    const windowIndex = params.window ?? windowIndexFromClock(now);
+    const seedHash = hashSeed(params.seed ?? "");
+    const offset = rotationOffset(windowIndex, seedHash, remaining, poolCount);
 
-    return result;
+    const poolRows: TanzakuRow[] = [];
+    for (const part of splitWindow(offset, remaining, poolCount)) {
+      const rows = await this.tanzakus.findRotationSlice(
+        scopeEventId,
+        excludeIds,
+        part.offset,
+        part.limit
+      );
+      poolRows.push(...rows);
+    }
+
+    return [...fresh, ...poolRows].map(serialize);
   }
 
   async getAllTanzaku() {
-    return await this.prisma.tanzaku.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
-      include: {
-        event: { select: { id: true, name: true } }
-      }
-    });
+    const rows = await this.tanzakus.findAllWithEvent();
+    return rows.map((row: TanzakuWithEvent) => serialize(row));
   }
 
-  async editTanzaku(
-    data: {
-      id: string;
-      operation: "delete" | "hardDelete" | "update";
-      content?: string;
-      userName?: string;
-      validationResult?: number;
-      eventId?: string | null;
-    }[]
-  ) {
-    const deleteData = data.filter((d) => d.operation === "delete");
-    const hardDeleteData = data.filter((d) => d.operation === "hardDelete");
-    const updateData = data.filter((d) => d.operation === "update");
+  async editTanzaku(data: TanzakuEditOperation[]) {
+    const deleteIds = data
+      .filter((d) => d.operation === "delete")
+      .map((d) => d.id);
+    const hardDeleteIds = data
+      .filter((d) => d.operation === "hardDelete")
+      .map((d) => d.id);
+    const updates = data.filter((d) => d.operation === "update");
 
-    if (deleteData.length > 0) {
-      await this.prisma.tanzaku.updateMany({
-        where: {
-          id: { in: deleteData.map((d) => d.id) }
-        },
-        data: {
-          logicalDelete: true
-        }
-      });
-    }
+    await this.tanzakus.markLogicalDeleted(deleteIds);
+    await this.tanzakus.hardDelete(hardDeleteIds);
 
-    if (hardDeleteData.length > 0) {
-      await this.prisma.tanzaku.deleteMany({
-        where: {
-          id: { in: hardDeleteData.map((d) => d.id) }
-        }
-      });
-    }
-
-    if (updateData.length > 0) {
-      await Promise.all(
-        updateData.map((d) =>
-          this.prisma.tanzaku.update({
-            where: { id: d.id },
-            data: {
-              content: d.content ?? undefined,
-              userName: d.userName ?? undefined,
-              validationResult: d.validationResult ?? undefined,
-              ...(d.eventId !== undefined ? { eventId: d.eventId } : {})
-            }
-          })
-        )
-      );
-    }
+    await Promise.all(
+      updates.map((d) =>
+        this.tanzakus.updateOne(d.id, {
+          content: d.content,
+          userName: d.userName,
+          validationResult: d.validationResult,
+          eventId: d.eventId
+        })
+      )
+    );
   }
 }
