@@ -346,7 +346,9 @@ sequenceDiagram
 
 ### 7.2 掲示ビューのローテーション（ステートレス）
 
-`GET /tanzaku/client` は**DBへの書き込みを一切行わない決定的な計算**です。同じ `limit`/`window`/`seed` の呼び出しは（データが変わらない限り）常に同じ結果を返します。
+`GET /tanzaku/client` は**DBへの書き込みを一切行わない**計算です。巡回セグメントは `window`/`seed` だけで位置が決まるため、同じ `limit`/`window`/`seed` の呼び出しは（データが変わらない限り）同じ窓を読みます。
+
+ただし**時間に依存しない冪等ではありません**。新着セグメントの判定はサーバー現在時刻から60秒窓を毎回計算し直すため、DBが変わらなくても時間経過だけで、新着だった行が新着枠から外れて巡回セグメントの母集団へ移り、レスポンスが変わります。決定的なのは「同一時刻（同一の60秒窓）で見たとき」です。
 
 ```mermaid
 sequenceDiagram
@@ -548,8 +550,9 @@ graph LR
     FE_Repo --> CI_FE
     BE_Repo --> CI_BE
     FE_Repo --> WF_FE -->|"pnpm build → wrangler deploy"| CF_FE
-    BE_Repo --> WF_BE -->|"wrangler deploy"| CF_BE
-    WF_BE -.->|"with_d1=true のとき<br/>d1 migrations apply --remote"| D1
+    BE_Repo --> WF_BE
+    WF_BE -->|"① d1 migrations apply --remote<br/>(with_d1=true のときのみ)"| D1
+    WF_BE -->|"② wrangler deploy<br/>③ Release タグ作成"| CF_BE
     CF_BE --- D1
     CF_BE --- CF_AI
     CF_FE <-->|"HTTPS"| CF_BE
@@ -579,8 +582,12 @@ graph LR
 
 | リポジトリ | ワークフロー | 入力 | 内容 |
 |---|---|---|---|
-| tanzakuv2 | `Deploy & Release` | `with_d1`（既定 true） | Secrets を注入して `wrangler deploy` → 有効時は `d1 migrations apply --remote` → `vYYYY.MM.DD.HHmm` タグでRelease作成 |
+| tanzakuv2 | `Deploy & Release` | `with_d1`（既定 true） | `d1 migrations apply --remote`（`with_d1` 有効時のみ）→ Secrets を注入して `wrangler deploy` → `vYYYY.MM.DD.HHmm` タグでRelease作成 |
 | tanzaku-frontend-v2 | `Deploy` | `festival_mode`（`tanabata` / `sakura`） | 選択値を `VITE_FESTIVAL_MODE` に渡して `pnpm build` → `wrangler deploy` → Release作成 |
+
+バックエンドの3ジョブ（`db-deploy` → `build` → `release`）は直列で、前段が失敗すると後続はスキップされます。したがって **Release タグが打たれていることは、マイグレーションとデプロイの両方が成功した証跡**になります（`with_d1=false` の場合はマイグレーションを実行しないだけで、デプロイとReleaseは通常どおり実行されます）。
+
+> この直列化は「マイグレーション先行」を前提とします。列削除などの破壊的マイグレーションは、その列を参照しないコードを先のリリースで出してから、次のリリースで適用してください（`migrations/0007` の `visiblePattern` 削除で実際に踏んでいる手順）。
 
 > フロントエンドの `festival_mode` はあくまで**ビルド時の初期値**です。運用中の切り替えは管理画面（`PUT /manage/config`）から行い、再デプロイは不要です。
 
